@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, AlertCircle } from 'lucide-react';
 import { useAuditStore } from '../lib/store';
 import { t } from '../lib/translations';
 import { supabase } from '../lib/supabase';
@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase';
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLoginSuccess: () => void; // To tell the app to refresh
+  onLoginSuccess: () => void; 
 }
 
 export function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps) {
@@ -16,6 +16,7 @@ export function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [mode, setMode] = useState<'login' | 'signup'>('signup'); // Toggle
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,22 +24,46 @@ export function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
     setLoading(true);
 
     try {
-      // This is the Supabase call that will fail until the DB is back
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      if (mode === 'signup') {
+        // 1. Try to Sign Up
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+        });
 
-      if (signInError) throw signInError;
-      if (!data.session) throw new Error('Login failed, please try again.');
+        if (signUpError) throw signUpError;
+        
+        // If auto-confirm is off, we are logged in. 
+        // If on, data.session is null.
+        if (data.session) {
+           onLoginSuccess();
+           onClose();
+        } else {
+           // User likely exists, try logging in instead
+           if (data.user && data.user.identities && data.user.identities.length === 0) {
+              setError("User already exists. Switching to Login...");
+              setMode('login');
+              // Optional: Auto-submit login here
+           } else {
+             setError("Please check your email to confirm your account.");
+           }
+        }
+      } else {
+        // 2. Login Mode
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-      // Success!
-      setLoading(false);
-      onLoginSuccess(); // Tell the app we are logged in
-      onClose(); // Close the modal
-    } catch (err) {
-      const error = err as Error;
-      setError(error.message);
+        if (signInError) throw signInError;
+        if (data.session) {
+          onLoginSuccess();
+          onClose();
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || 'Authentication failed.');
+    } finally {
       setLoading(false);
     }
   };
@@ -46,69 +71,74 @@ export function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-8 relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 transition-all">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative transform transition-all scale-100">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
-          aria-label={t('paywall.close', language)}
+          className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
         >
           <X className="w-6 h-6" />
         </button>
 
-        <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-3">
-            {t('login.title', language)}
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold text-slate-900 mb-2">
+            {mode === 'signup' ? 'Start Audit' : 'Welcome Back'}
           </h2>
+          <p className="text-slate-500 text-sm">
+            {mode === 'signup' ? 'Create an account to save your progress.' : 'Sign in to access your dashboard.'}
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label
-              htmlFor="login-email"
-              className="block text-sm font-medium text-gray-700 mb-2"
-            >
-              {t('form.email', language)}
+            <label className="block text-sm font-bold text-slate-700 mb-2">
+              Email Address
             </label>
             <input
               type="email"
-              id="login-email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder={t('form.emailPlaceholder', language)}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all bg-slate-50 focus:bg-white"
               required
             />
           </div>
           <div>
-            <label
-              htmlFor="login-password"
-              className="block text-sm font-medium text-gray-700 mb-2"
-            >
-              {t('login.password', language)}
+            <label className="block text-sm font-bold text-slate-700 mb-2">
+              Password
             </label>
             <input
               type="password"
-              id="login-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all bg-slate-50 focus:bg-white"
               required
             />
           </div>
+
           {error && (
-            <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg">
+            <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 p-4 rounded-xl border border-red-100">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
               {error}
             </div>
           )}
+
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+            className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/20 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            {loading ? t('loading', language) : t('login.cta', language)}
+            {loading ? 'Processing...' : (mode === 'signup' ? 'Create Account' : 'Sign In')}
           </button>
+
+          <div className="text-center mt-4">
+            <button
+              type="button"
+              onClick={() => { setError(''); setMode(mode === 'signup' ? 'login' : 'signup'); }}
+              className="text-sm text-slate-500 hover:text-blue-600 font-medium transition-colors underline decoration-slate-300 hover:decoration-blue-600"
+            >
+              {mode === 'signup' ? 'Already have an account? Log in' : 'Need an account? Sign up'}
+            </button>
+          </div>
         </form>
       </div>
     </div>

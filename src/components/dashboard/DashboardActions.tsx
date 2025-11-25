@@ -2,12 +2,11 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Header } from '../components/Header';
-import { useAuditStore } from '../lib/store';
+import { useAuditStore } from '../lib/store'; 
 import { PaywallModal } from '../components/PaywallModal';
 import { DashboardStats } from '../components/dashboard/DashboardStats';
 import { DashboardActions } from '../components/dashboard/DashboardActions';
 import { VendorTable } from '../components/dashboard/VendorTable';
-import { generateS211Report } from '../lib/pdf-generator'; // Ensure this is imported
 
 // Define the shape of our data matching Supabase
 interface Vendor {
@@ -26,16 +25,16 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [uploading, setUploading] = useState(false);
-
+  
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
-
+  
   // Manual Add Form State
   const [newVendor, setNewVendor] = useState({ name: '', email: '', country: '' });
-
+  
   // Global Store
-  const isPremium = useAuditStore((state) => state.isPremium);
+  const isPremium = useAuditStore((state) => state.isPremium); 
 
   // --- INITIAL DATA FETCH ---
   useEffect(() => {
@@ -47,7 +46,7 @@ export function Dashboard() {
       .from('vendors')
       .select('*')
       .order('created_at', { ascending: false });
-
+    
     if (error) console.error('Error fetching vendors:', error);
     if (data) setVendors(data as Vendor[]);
     setLoading(false);
@@ -63,21 +62,21 @@ export function Dashboard() {
       const text = await file.text();
       const rows = text.split('\n');
       const newVendors = [];
-
+      
       // Get current user to attach to vendor
       const { data: { user } } = await supabase.auth.getUser();
-
+      
       if (!user) throw new Error("User not authenticated");
 
       // Skip header row (index 0)
-      for (const row of rows.slice(1)) {
+      for (const row of rows.slice(1)) { 
         // Handle simple CSV splitting (robust for basic files)
         const [name, email, country] = row.split(',').map(s => s?.trim());
-
+        
         if (!name) continue;
-
+        
         // Auto-Risk Logic (The "Value Add")
-        const isHigh = ['India', 'China', 'Vietnam', 'Bangladesh', 'Pakistan', 'Myanmar', 'Cambodia', 'Russia'].some(r =>
+        const isHigh = ['India', 'China', 'Vietnam', 'Bangladesh', 'Pakistan', 'Myanmar', 'Cambodia', 'Russia'].some(r => 
           country?.toLowerCase().includes(r.toLowerCase())
         );
 
@@ -119,7 +118,7 @@ export function Dashboard() {
     // 2. The Mock Campaign Dispatch (Replace with Edge Function in Prod)
     for (const vendor of targets) {
       console.log(`[Server Action] Sending compliance email to ${vendor.contact_email}`);
-
+      
       // Audit Log Entry
       await supabase.from('compliance_logs').insert({
         vendor_id: vendor.id,
@@ -136,50 +135,6 @@ export function Dashboard() {
     setSelectedIds(new Set()); // Clear selection
   };
 
-  // --- LOGIC: SINGLE SEND (GATED) ---
-  const handleSingleSend = async (id: string) => {
-    if (!isPremium) {
-      setShowPaywall(true);
-      return;
-    }
-
-    const vendor = vendors.find(v => v.id === id);
-    if (!vendor) return;
-
-    console.log(`[Server Action] Sending single email to ${vendor.contact_email}`);
-
-    // Audit Log Entry
-    await supabase.from('compliance_logs').insert({
-      vendor_id: id,
-      action_type: 'EMAIL_SENT',
-      details: `Manual single request sent to ${vendor.contact_email}`
-    });
-
-    // Update Vendor Status
-    await supabase.from('vendors').update({ verification_status: 'SENT' }).eq('id', id);
-    
-    alert(`Request sent to ${vendor.company_name}`);
-    fetchVendors();
-  };
-
-  // --- LOGIC: GENERATE REPORT (GATED) ---
-  const handleGenerateReport = async () => {
-    if (!isPremium) {
-      setShowPaywall(true);
-      return;
-    }
-    
-    // Fetch Logs for the report
-    const { data: logs } = await supabase.from('compliance_logs').select('*').order('timestamp', { ascending: false });
-    
-    // Generate PDF
-    if (generateS211Report) {
-        generateS211Report("My Company Inc.", vendors, logs || []);
-    } else {
-        alert("PDF Generator not implemented yet.");
-    }
-  };
-
   // --- LOGIC: MANUAL ADD ---
   const handleManualAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -187,10 +142,10 @@ export function Dashboard() {
     if (!user) return;
 
     // Auto-calc risk
-    const isHigh = ['India', 'China', 'Vietnam', 'Russia'].some(r =>
+    const isHigh = ['India', 'China', 'Vietnam', 'Russia'].some(r => 
       newVendor.country.toLowerCase().includes(r.toLowerCase())
     );
-
+    
     const { error } = await supabase.from('vendors').insert({
       user_id: user.id,
       company_name: newVendor.name,
@@ -210,9 +165,9 @@ export function Dashboard() {
   // --- LOGIC: DELETE VENDOR ---
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to remove this vendor from monitoring?')) return;
-
+    
     const { error } = await supabase.from('vendors').delete().eq('id', id);
-
+    
     if (!error) {
       setVendors(prev => prev.filter(v => v.id !== id));
       setSelectedIds(prev => {
@@ -241,15 +196,14 @@ export function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-slate-900">
       <Header />
-
+      
       <main className="max-w-7xl mx-auto px-4 py-8">
-
+        
         {/* 1. ACTION BAR */}
-        <DashboardActions
+        <DashboardActions 
            onManualAdd={() => setIsAddModalOpen(true)}
            onFileUpload={handleFileUpload}
            onVerify={handleSendCampaign}
-           onGenerateReport={handleGenerateReport}
            onDownloadTemplate={handleDownloadTemplate}
            uploading={uploading}
            selectedCount={selectedIds.size}
@@ -257,14 +211,14 @@ export function Dashboard() {
         />
 
         {/* 2. STATISTICS */}
-        <DashboardStats
-          total={vendors.length}
-          highRisk={vendors.filter(v => v.risk_status === 'HIGH').length}
-          verified={vendors.filter(v => v.verification_status === 'VERIFIED').length}
+        <DashboardStats 
+          total={vendors.length} 
+          highRisk={vendors.filter(v => v.risk_status === 'HIGH').length} 
+          verified={vendors.filter(v => v.verification_status === 'VERIFIED').length} 
         />
 
         {/* 3. MAIN TABLE */}
-        <VendorTable
+        <VendorTable 
           vendors={vendors}
           selectedIds={selectedIds}
           onToggleSelect={(id) => {
@@ -278,7 +232,6 @@ export function Dashboard() {
           }}
           onDelete={handleDelete}
           onTriggerUpsell={() => setShowPaywall(true)}
-          onSendSingle={handleSingleSend}
         />
 
       </main>
@@ -287,53 +240,53 @@ export function Dashboard() {
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 transition-all">
            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-8 relative transform scale-100">
-              <button
-                onClick={() => setIsAddModalOpen(false)}
+              <button 
+                onClick={() => setIsAddModalOpen(false)} 
                 className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
               >
                 <X size={20}/>
               </button>
-
+              
               <h2 className="text-2xl font-bold text-slate-900 mb-6">Add New Vendor</h2>
-
+              
               <form onSubmit={handleManualAdd} className="space-y-5">
                  <div>
                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Company Name</label>
-                   <input
-                     className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition-all"
-                     value={newVendor.name}
-                     onChange={e => setNewVendor({...newVendor, name: e.target.value})}
+                   <input 
+                     className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition-all" 
+                     value={newVendor.name} 
+                     onChange={e => setNewVendor({...newVendor, name: e.target.value})} 
                      placeholder="e.g. Acme Inc."
-                     required
+                     required 
                    />
                  </div>
-
+                 
                  <div>
                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Contact Email</label>
-                   <input
+                   <input 
                      type="email"
-                     className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition-all"
-                     value={newVendor.email}
-                     onChange={e => setNewVendor({...newVendor, email: e.target.value})}
+                     className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition-all" 
+                     value={newVendor.email} 
+                     onChange={e => setNewVendor({...newVendor, email: e.target.value})} 
                      placeholder="contact@vendor.com"
-                     required
+                     required 
                    />
                  </div>
 
                  <div>
                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Country</label>
-                   <input
-                     className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition-all"
-                     value={newVendor.country}
-                     onChange={e => setNewVendor({...newVendor, country: e.target.value})}
+                   <input 
+                     className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition-all" 
+                     value={newVendor.country} 
+                     onChange={e => setNewVendor({...newVendor, country: e.target.value})} 
                      placeholder="e.g. China"
-                     required
+                     required 
                    />
                    <p className="text-xs text-slate-400 mt-1.5">We use this to auto-calculate risk scores.</p>
                  </div>
 
-                 <button
-                   type="submit"
+                 <button 
+                   type="submit" 
                    className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-lg hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/20 mt-2"
                  >
                     Save Vendor
@@ -344,9 +297,9 @@ export function Dashboard() {
       )}
 
       {/* --- MODAL: PAYWALL --- */}
-      <PaywallModal
-        isOpen={showPaywall}
-        onClose={() => setShowPaywall(false)}
+      <PaywallModal 
+        isOpen={showPaywall} 
+        onClose={() => setShowPaywall(false)} 
       />
     </div>
   );
