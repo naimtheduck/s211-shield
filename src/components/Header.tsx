@@ -114,8 +114,6 @@ const goToDashboard = async () => {
                     onClick={() => void goToDashboard()}
                     className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                   >
-                    <LayoutDashboard className="w-4 h-4 mr-2" />
-                    Dashboard
                   </button>
                   <button
                     onClick={internalLogout}

@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { Header } from '../components/Header';
-import { useAuditStore } from '../lib/store';
-import { PaywallModal } from '../components/PaywallModal';
-import { DashboardStats } from '../components/dashboard/DashboardStats';
-import { DashboardActions } from '../components/dashboard/DashboardActions';
-import { VendorTable } from '../components/dashboard/VendorTable';
-import { generateS211Report } from '../lib/pdf-generator'; // Ensure this is imported
+import { supabase } from '@/lib/supabase';
+import { Header } from '@/components/Header';
+import { useAuditStore } from '@/lib/store';
+import { PaywallModal } from '@/components/PaywallModal';
+import { DashboardStats } from '@/components/dashboard/DashboardStats';
+import { DashboardActions } from '@/components/dashboard/DashboardActions';
+import { VendorTable } from '@/components/dashboard/VendorTable';
+import { generateS211Report } from '@/lib/pdf-generator'; // Ensure this is imported
 
 // Define the shape of our data matching Supabase
 interface Vendor {

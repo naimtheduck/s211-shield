@@ -2,7 +2,7 @@ import {
   AlertTriangle, CheckCircle, Clock, FileText, Trash2, 
   Lock, Mail, BellRing, Send 
 } from 'lucide-react';
-import { useAuditStore } from '../../lib/store';
+import { useAuditStore } from '@/lib/store';
 
 interface Vendor {
   id: string;
