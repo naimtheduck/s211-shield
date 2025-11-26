@@ -5,6 +5,9 @@ import { Dashboard } from './pages/Dashboard';
 import { SupplierPortal } from './pages/SupplierPortal'; 
 import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { TermsOfService } from './pages/TermsOfService';
+import { Onboarding } from './pages/Onboarding'; 
+import { TeamSettings } from './pages/TeamSettings'; 
+import { AcceptInvite } from './pages/AcceptInvite'; 
 import { useAuditStore } from './lib/store';
 import { supabase } from './lib/supabase';
 
@@ -15,15 +18,37 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Check Active Session on Load
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       setIsLoggedIn(!!session);
+      
+      // --- NEW: Post-Login Invite Redirect ---
+      if (session) {
+        const pendingToken = sessionStorage.getItem('pending_invite_token');
+        if (pendingToken) {
+          // We found a pending invite! Clear it and go to join page.
+          sessionStorage.removeItem('pending_invite_token');
+          window.location.href = `/join?token=${pendingToken}`;
+          return;
+        }
+      }
+      
       setLoading(false);
-    });
+    };
 
-    // 2. Listen for Auth Changes (Sign In / Sign Out)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    checkSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setIsLoggedIn(!!session);
+      
+      // Also check on sign-in event
+      if (event === 'SIGNED_IN' && session) {
+         const pendingToken = sessionStorage.getItem('pending_invite_token');
+         if (pendingToken) {
+           sessionStorage.removeItem('pending_invite_token');
+           window.location.href = `/join?token=${pendingToken}`;
+         }
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -39,35 +64,35 @@ function App() {
 
   // --- ROUTING LOGIC ---
 
-  // 1. Public Vendor Portal (No Auth Required)
-  // Matches /verify?token=xyz
+  // 1. Priority Routes (Public/Hybrid)
+  if (path.startsWith('/join')) {
+    return <AcceptInvite />;
+  }
+
   if (path.startsWith('/verify')) {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
     return <SupplierPortal token={token || ''} />;
   }
 
-  // 2. Static Pages
   if (path === '/privacy-policy') return <PrivacyPolicy />;
   if (path === '/terms-of-service') return <TermsOfService />;
 
-  // 3. Protected Dashboard (CFO View)
-  if (path.startsWith('/dashboard')) {
-    if (!isLoggedIn) {
-      // Kick them out if not logged in
-      window.history.replaceState({}, '', '/');
-      return <Landing />;
-    }
-    return <Dashboard />;
-  }
-
-  // 4. Landing / Login (Default)
+  // 2. Protected Routes (Logged In Users Only)
   if (isLoggedIn) {
-    // If already logged in, redirect to dashboard
+    if (path === '/onboarding') return <Onboarding />;
+    if (path === '/team') return <TeamSettings />;
+    
+    if (path.startsWith('/dashboard')) {
+      return <Dashboard />;
+    }
+
+    // Default Redirect
     window.history.replaceState({}, '', '/dashboard');
     return <Dashboard />;
   }
 
+  // 3. Public Landing Page
   return <Landing />;
 }
 

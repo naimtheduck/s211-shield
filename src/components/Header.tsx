@@ -1,13 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuditStore } from '../lib/store';
 import { t } from '../lib/translations';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from '../lib/router';
 import { LoginModal } from './LoginModal';
-import { LayoutDashboard } from 'lucide-react';
-// Remove navigateToMostRecentAudit if not used elsewhere, or keep it.
+import { LayoutDashboard, Users } from 'lucide-react';
 
-export function Header({ onLogout }: { onLogout?: () => void }) { // Accept onLogout prop if passed from App
+export function Header({ onLogout }: { onLogout?: () => void }) {
   const language = useAuditStore((state) => state.language);
   const setLanguage = useAuditStore((state) => state.setLanguage);
   const isLoggedIn = useAuditStore((state) => state.isLoggedIn);
@@ -16,15 +15,32 @@ export function Header({ onLogout }: { onLogout?: () => void }) { // Accept onLo
   const setIsLoginModalOpen = useAuditStore((state) => state.setIsLoginModalOpen);
 
   const navigate = useNavigate();
+  const [hasOrg, setHasOrg] = useState(false);
 
-  // Check for a logged-in user on component mount
+  // Check for a logged-in user on component mount & Org Status
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setIsLoggedIn(!!session);
-    });
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      
+      setIsLoggedIn(!!user);
+
+      if (user) {
+        // Check if they belong to an org (to show Team button)
+        const { count } = await supabase
+          .from('organization_members')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id);
+        
+        setHasOrg(!!count && count > 0);
+      }
+    };
+
+    checkUser();
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsLoggedIn(!!session);
+      if (session) checkUser();
     });
 
     return () => {
@@ -36,48 +52,17 @@ export function Header({ onLogout }: { onLogout?: () => void }) { // Accept onLo
     setLanguage(language === 'en' ? 'fr' : 'en');
   };
   
-  // --- THE FIXED LOGIC ---
-const goToDashboard = async () => {
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError || !session?.user) {
-      navigate('/');
-      return;
-    }
-
-    // 1. CHECK MSP STATUS FIRST
-    const { count, error: orgError } = await supabase
-      .from('organization_members')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', session.user.id);
-
-    // If they are an MSP, send them to the clean dashboard URL
-    if (!orgError && count && count > 0) {
-      navigate('/dashboard'); 
-      return;
-    }
-
-    // 2. IF NOT MSP, DO B2C LOGIC
-    const { data, error } = await supabase
-      .from('audits')
-      .select('id')
-      .eq('user_id', session.user.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (data) {
-      navigate(`/dashboard?id=${data.id}`);
-    } else {
-      navigate('/');
-    }
+  const goToDashboard = async () => {
+    // If logged in, Dashboard.tsx will handle the redirect to /onboarding if needed
+    navigate('/dashboard');
   };
 
   const internalLogout = async () => {
     await supabase.auth.signOut();
     setIsLoggedIn(false);
+    setHasOrg(false);
     navigate('/');
-    if (onLogout) onLogout(); // Call parent logout if provided
+    if (onLogout) onLogout(); 
   };
 
   const handleLoginSuccess = async () => {
@@ -111,10 +96,24 @@ const goToDashboard = async () => {
               {isLoggedIn ? (
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => void goToDashboard()}
+                    onClick={() => navigate('/dashboard')}
                     className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                   >
+                    <LayoutDashboard className="w-4 h-4 mr-2" />
+                    Dashboard
                   </button>
+                  
+                  {/* ONLY SHOW TEAM BUTTON IF THEY HAVE AN ORG */}
+                  {hasOrg && (
+                    <button
+                      onClick={() => navigate('/team')}
+                      className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    >
+                      <Users className="w-4 h-4 mr-2" />
+                      Team
+                    </button>
+                  )}
+
                   <button
                     onClick={internalLogout}
                     className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
