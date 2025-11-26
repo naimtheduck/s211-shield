@@ -10,6 +10,7 @@ import { TeamSettings } from './pages/TeamSettings';
 import { AcceptInvite } from './pages/AcceptInvite'; 
 import { useAuditStore } from './lib/store';
 import { supabase } from './lib/supabase';
+import { Toaster } from 'sonner';
 
 function App() {
   const path = useRouter();
@@ -22,11 +23,10 @@ function App() {
       const { data: { session } } = await supabase.auth.getSession();
       setIsLoggedIn(!!session);
       
-      // --- NEW: Post-Login Invite Redirect ---
+      // --- Post-Login Invite Redirect ---
       if (session) {
         const pendingToken = sessionStorage.getItem('pending_invite_token');
         if (pendingToken) {
-          // We found a pending invite! Clear it and go to join page.
           sessionStorage.removeItem('pending_invite_token');
           window.location.href = `/join?token=${pendingToken}`;
           return;
@@ -41,7 +41,6 @@ function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setIsLoggedIn(!!session);
       
-      // Also check on sign-in event
       if (event === 'SIGNED_IN' && session) {
          const pendingToken = sessionStorage.getItem('pending_invite_token');
          if (pendingToken) {
@@ -63,37 +62,46 @@ function App() {
   }
 
   // --- ROUTING LOGIC ---
+  const getContent = () => {
+    // 1. Priority Routes (Public/Hybrid)
+    if (path.startsWith('/join')) {
+      return <AcceptInvite />;
+    }
 
-  // 1. Priority Routes (Public/Hybrid)
-  if (path.startsWith('/join')) {
-    return <AcceptInvite />;
-  }
+    if (path.startsWith('/verify')) {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+      return <SupplierPortal token={token || ''} />;
+    }
 
-  if (path.startsWith('/verify')) {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('token');
-    return <SupplierPortal token={token || ''} />;
-  }
+    if (path === '/privacy-policy') return <PrivacyPolicy />;
+    if (path === '/terms-of-service') return <TermsOfService />;
 
-  if (path === '/privacy-policy') return <PrivacyPolicy />;
-  if (path === '/terms-of-service') return <TermsOfService />;
+    // 2. Protected Routes (Logged In Users Only)
+    if (isLoggedIn) {
+      if (path === '/onboarding') return <Onboarding />;
+      if (path === '/team') return <TeamSettings />;
+      
+      // Default Dashboard Route
+      if (path.startsWith('/dashboard')) {
+        return <Dashboard />;
+      }
 
-  // 2. Protected Routes (Logged In Users Only)
-  if (isLoggedIn) {
-    if (path === '/onboarding') return <Onboarding />;
-    if (path === '/team') return <TeamSettings />;
-    
-    if (path.startsWith('/dashboard')) {
+      // Default Redirect for unknown protected routes
+      window.history.replaceState({}, '', '/dashboard');
       return <Dashboard />;
     }
 
-    // Default Redirect
-    window.history.replaceState({}, '', '/dashboard');
-    return <Dashboard />;
-  }
+    // 3. Public Landing Page
+    return <Landing />;
+  };
 
-  // 3. Public Landing Page
-  return <Landing />;
+  return (
+    <>
+      <Toaster position="top-right" richColors />
+      {getContent()}
+    </>
+  );
 }
 
 export default App;

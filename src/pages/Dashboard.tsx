@@ -7,7 +7,9 @@ import { PaywallModal } from '../components/PaywallModal';
 import { DashboardStats } from '../components/dashboard/DashboardStats';
 import { DashboardActions } from '../components/dashboard/DashboardActions';
 import { VendorTable } from '../components/dashboard/VendorTable';
+import { CsvImportWizard } from '../components/dashboard/CsvImportWizard'; 
 import { generateS211Report } from '../lib/pdf-generator';
+import { toast } from 'sonner';
 
 interface DashboardVendor {
   id: string;
@@ -24,10 +26,16 @@ export function Dashboard() {
   const [vendors, setVendors] = useState<DashboardVendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [uploading, setUploading] = useState(false);
+  
+  // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false); // <--- CSV Wizard State
   const [showPaywall, setShowPaywall] = useState(false);
+  
+  // Data States
+  const [cycleId, setCycleId] = useState<string | null>(null); // <--- Stores active cycle for CSV
   const [newVendor, setNewVendor] = useState({ name: '', email: '', country: '' });
+  
   const isPremium = useAuditStore((state) => state.isPremium);
 
   useEffect(() => {
@@ -54,7 +62,6 @@ export function Dashboard() {
     }
 
     if (!member) {
-      // USER HAS NO COMPANY -> FORCE REDIRECT TO ONBOARDING
       console.log("No membership found - redirecting to onboarding");
       window.location.href = '/onboarding';
       return;
@@ -62,7 +69,8 @@ export function Dashboard() {
 
     console.log("✅ User is member of company:", member.company_id);
 
-    // 2. Get Active Reporting Cycle (Restored for 'Right Architecture')
+    // 2. Get Active Reporting Cycle
+    // We check for the cycle ONCE here to avoid duplicate variable errors
     const { data: cycle, error: cycleError } = await supabase
       .from('reporting_cycles')
       .select('id')
@@ -72,12 +80,13 @@ export function Dashboard() {
 
     if (cycleError) {
       console.error("Error fetching cycle:", cycleError);
-      alert("Failed to load reporting cycle. Check RLS policies.");
       setLoading(false);
       return;
     }
 
-    if (!cycle) {
+    let activeCycleId = cycle?.id;
+
+    if (!activeCycleId) {
       // Auto-recover: Create a cycle if missing
       console.warn("⚠️ No active cycle found. Attempting auto-recovery...");
       
@@ -100,19 +109,19 @@ export function Dashboard() {
       }
       
       console.log("✅ Created new cycle:", newCycle.id);
-      // Continue with the new cycle
-      await loadVendors(newCycle.id);
-      setLoading(false);
-      return;
+      activeCycleId = newCycle.id;
     }
 
-    console.log("✅ Found active cycle:", cycle.id);
-    await loadVendors(cycle.id);
+    // 3. Load Data using the ID
+    if (activeCycleId) {
+        setCycleId(activeCycleId); // Save to state for CSV Wizard
+        await loadVendors(activeCycleId);
+    }
+    
     setLoading(false);
   };
 
-  const loadVendors = async (cycleId: string) => {
-    // 3. Fetch Vendors via Cycle ID
+  const loadVendors = async (id: string) => {
     const { data, error } = await supabase
       .from('company_vendors')
       .select(`
@@ -121,7 +130,7 @@ export function Dashboard() {
         verification_status,
         vendor:vendors ( company_name, contact_email, country )
       `)
-      .eq('reporting_cycle_id', cycleId) // <--- Matches your DB image
+      .eq('reporting_cycle_id', id) // Correctly uses the cycle ID
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -134,17 +143,14 @@ export function Dashboard() {
 
   const handleManualAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data: member } = await supabase.from('organization_members').select('company_id').eq('user_id', user.id).single();
     
-    // Find the cycle again to be safe
-    const { data: cycle } = await supabase.from('reporting_cycles').select('id').eq('company_id', member?.company_id).eq('is_active', true).single();
-    
-    if (!cycle) { alert("System Error: No active reporting cycle found."); return; }
+    // We can reuse the cycleId from state since we fetched it on load
+    if (!cycleId) {
+        alert("System Error: No active reporting cycle loaded. Please refresh.");
+        return;
+    }
 
-    // Create Global Vendor
+    // 1. Create Global Vendor
     const { data: vendor, error: vErr } = await supabase
       .from('vendors')
       .insert({
@@ -157,17 +163,14 @@ export function Dashboard() {
 
     if (vErr) { alert(`Error creating vendor: ${vErr.message}`); return; }
 
-    // Link to Company via Cycle
-    const isHigh = ['India', 'China', 'Vietnam', 'Russia'].some(r => 
+    // 2. Link to Company (using cycleId)
+    const isHigh = ['India', 'China', 'Vietnam', 'Russia', 'Myanmar', 'North Korea'].some(r => 
       newVendor.country.toLowerCase().includes(r.toLowerCase())
     );
 
-    // --- FIX IS HERE ---
-    // I removed 'company_id' from this insert because your DB table 
-    // 'company_vendors' only has 'reporting_cycle_id'.
     const { error: lErr } = await supabase.from('company_vendors').insert({
-      reporting_cycle_id: cycle.id, // Connects to the cycle
-      vendor_id: vendor.id,         // Connects to the vendor
+      reporting_cycle_id: cycleId, // <--- USES STATE
+      vendor_id: vendor.id,
       risk_status: isHigh ? 'HIGH' : 'LOW',
       verification_status: 'PENDING'
     });
@@ -175,15 +178,14 @@ export function Dashboard() {
     if (!lErr) {
       setIsAddModalOpen(false);
       setNewVendor({ name: '', email: '', country: '' });
-      fetchDashboardData();
+      fetchDashboardData(); // Refresh list
+      toast.success("Vendor added successfully");
     } else {
-        alert(`Link Error: ${lErr.message}`);
-    }
+        toast.error(`Link Error: ${lErr.message}`);    }
   };
 
-  // Placeholder functions
-  const handleFileUpload = () => alert("CSV Import needs new schema update.");
   const handleSendCampaign = () => isPremium ? alert("Campaign sent!") : setShowPaywall(true);
+  
   const handleGenerateReport = () => {
     if (!isPremium) { setShowPaywall(true); return; }
     const flatData = vendors.map(v => ({
@@ -199,8 +201,10 @@ export function Dashboard() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Remove vendor from this report?')) return;
-    await supabase.from('company_vendors').delete().eq('id', id);
-    setVendors(prev => prev.filter(v => v.id !== id));
+    const { error } = await supabase.from('company_vendors').delete().eq('id', id);
+    if (!error) {
+        setVendors(prev => prev.filter(v => v.id !== id));
+    }
   };
 
   if (loading) {
@@ -210,7 +214,6 @@ export function Dashboard() {
         <div className="flex flex-col items-center justify-center py-20">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mb-4"></div>
           <p className="text-slate-600 font-medium">Loading Dashboard...</p>
-          <p className="text-slate-400 text-sm mt-2">Setting up your workspace</p>
         </div>
       </div>
     );
@@ -222,11 +225,11 @@ export function Dashboard() {
       <main className="max-w-7xl mx-auto px-4 py-8">
         <DashboardActions
            onManualAdd={() => setIsAddModalOpen(true)}
-           onFileUpload={handleFileUpload}
+           onImportClick={() => setIsImportOpen(true)} // Opens Wizard
            onVerify={handleSendCampaign}
            onGenerateReport={handleGenerateReport}
            onDownloadTemplate={() => {}}
-           uploading={uploading}
+           uploading={false}
            selectedCount={selectedIds.size}
            isPremium={isPremium}
         />
@@ -238,11 +241,12 @@ export function Dashboard() {
         />
 
         <VendorTable
+          // 👇 THIS IS THE FIX: Flatten the nested data structure
           vendors={vendors.map(v => ({
             id: v.id,
-            company_name: v.vendor.company_name,
-            contact_email: v.vendor.contact_email,
-            country: v.vendor.country,
+            company_name: v.vendor?.company_name || 'Unknown Vendor', // Safety check
+            contact_email: v.vendor?.contact_email || 'No Email',
+            country: v.vendor?.country || 'Unknown',
             risk_status: v.risk_status,
             verification_status: v.verification_status
           }))}
@@ -262,7 +266,7 @@ export function Dashboard() {
         />
       </main>
 
-      {/* ADD MODAL */}
+      {/* MANUAL ADD MODAL */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-8 relative">
@@ -286,6 +290,14 @@ export function Dashboard() {
            </div>
         </div>
       )}
+
+      {/* CSV WIZARD MODAL */}
+      <CsvImportWizard 
+        isOpen={isImportOpen} 
+        onClose={() => setIsImportOpen(false)} 
+        onSuccess={() => fetchDashboardData()}
+        cycleId={cycleId} 
+      />
 
       <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} />
     </div>

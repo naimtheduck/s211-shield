@@ -2,22 +2,21 @@ import { Plus, Upload, Send, Lock, Download, FileText } from 'lucide-react';
 
 interface DashboardActionsProps {
   onManualAdd: () => void;
-  onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onImportClick: () => void; // <--- CHANGED from onFileUpload
   onVerify: () => void;
   onDownloadTemplate: () => void;
   onGenerateReport: () => void;
-  uploading: boolean;
+  uploading: boolean; // You can keep this if you want to show loading state
   selectedCount: number;
   isPremium: boolean;
 }
 
 export function DashboardActions({
   onManualAdd,
-  onFileUpload,
+  onImportClick, // <--- CHANGED
   onVerify,
   onDownloadTemplate,
   onGenerateReport,
-  uploading,
   selectedCount,
   isPremium,
 }: DashboardActionsProps) {
@@ -31,16 +30,13 @@ export function DashboardActions({
       </div>
 
       <div className="flex flex-wrap gap-3">
-        {/* Report Generator (New Feature) */}
         <button
             onClick={onGenerateReport}
             className="flex items-center px-4 py-2.5 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors shadow-sm text-sm font-bold text-slate-700"
-            title="Download S-211 PDF"
         >
             <FileText className="w-4 h-4 mr-2" /> Report
         </button>
 
-        {/* Manual Add */}
         <button
           onClick={onManualAdd}
           className="flex items-center px-4 py-2.5 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors shadow-sm text-sm font-bold text-slate-700"
@@ -49,19 +45,17 @@ export function DashboardActions({
           Add Vendor
         </button>
 
-        {/* Import CSV */}
+        {/* NEW IMPORT BUTTON */}
         <div className="relative group">
-          <label className="flex items-center px-4 py-2.5 bg-white border border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors shadow-sm text-sm font-bold text-slate-700">
+          <button
+            onClick={onImportClick}
+            className="flex items-center px-4 py-2.5 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors shadow-sm text-sm font-bold text-slate-700"
+          >
             <Upload className="w-4 h-4 mr-2" />
-            {uploading ? 'Analyzing...' : 'Import CSV'}
-            <input
-              type="file"
-              accept=".csv"
-              className="hidden"
-              onChange={onFileUpload}
-            />
-          </label>
-          {/* Tooltip for Template */}
+            Import CSV
+          </button>
+          
+          {/* Tooltip */}
           <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-md shadow-xl border border-slate-200 hidden group-hover:block z-20 p-2">
             <button
               onClick={onDownloadTemplate}
@@ -72,7 +66,6 @@ export function DashboardActions({
           </div>
         </div>
 
-        {/* Verify Action (The Money Button) */}
         <button
           onClick={onVerify}
           disabled={selectedCount === 0}
@@ -82,11 +75,7 @@ export function DashboardActions({
               : 'bg-slate-900 text-white hover:bg-slate-800'
           }`}
         >
-          {isPremium ? (
-            <Send className="w-4 h-4 mr-2" />
-          ) : (
-            <Lock className="w-4 h-4 mr-2 text-amber-400" />
-          )}
+          {isPremium ? <Send className="w-4 h-4 mr-2" /> : <Lock className="w-4 h-4 mr-2 text-amber-400" />}
           Verify Selected ({selectedCount})
         </button>
       </div>
