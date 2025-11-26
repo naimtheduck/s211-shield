@@ -62,7 +62,7 @@ export function Dashboard() {
 
     console.log("✅ User is member of company:", member.company_id);
 
-    // 2. Get Active Reporting Cycle
+    // 2. Get Active Reporting Cycle (Restored for 'Right Architecture')
     const { data: cycle, error: cycleError } = await supabase
       .from('reporting_cycles')
       .select('id')
@@ -94,7 +94,7 @@ export function Dashboard() {
 
       if (createError) {
         console.error("❌ Failed to create cycle:", createError);
-        alert(`Failed to create reporting cycle: ${createError.message}\n\nYou may need to run the RLS fix for reporting_cycles table.`);
+        alert(`Failed to create reporting cycle: ${createError.message}`);
         setLoading(false);
         return;
       }
@@ -112,7 +112,7 @@ export function Dashboard() {
   };
 
   const loadVendors = async (cycleId: string) => {
-    // 3. Fetch Vendors
+    // 3. Fetch Vendors via Cycle ID
     const { data, error } = await supabase
       .from('company_vendors')
       .select(`
@@ -121,7 +121,7 @@ export function Dashboard() {
         verification_status,
         vendor:vendors ( company_name, contact_email, country )
       `)
-      .eq('reporting_cycle_id', cycleId)
+      .eq('reporting_cycle_id', cycleId) // <--- Matches your DB image
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -138,9 +138,11 @@ export function Dashboard() {
     if (!user) return;
 
     const { data: member } = await supabase.from('organization_members').select('company_id').eq('user_id', user.id).single();
-    const { data: cycle } = await supabase.from('reporting_cycles').select('id').eq('company_id', member?.company_id).single();
     
-    if (!cycle) { alert("System Error: No reporting cycle found."); return; }
+    // Find the cycle again to be safe
+    const { data: cycle } = await supabase.from('reporting_cycles').select('id').eq('company_id', member?.company_id).eq('is_active', true).single();
+    
+    if (!cycle) { alert("System Error: No active reporting cycle found."); return; }
 
     // Create Global Vendor
     const { data: vendor, error: vErr } = await supabase
@@ -155,15 +157,17 @@ export function Dashboard() {
 
     if (vErr) { alert(`Error creating vendor: ${vErr.message}`); return; }
 
-    // Link to Company
+    // Link to Company via Cycle
     const isHigh = ['India', 'China', 'Vietnam', 'Russia'].some(r => 
       newVendor.country.toLowerCase().includes(r.toLowerCase())
     );
 
+    // --- FIX IS HERE ---
+    // I removed 'company_id' from this insert because your DB table 
+    // 'company_vendors' only has 'reporting_cycle_id'.
     const { error: lErr } = await supabase.from('company_vendors').insert({
-      company_id: member.company_id,
-      reporting_cycle_id: cycle.id,
-      vendor_id: vendor.id,
+      reporting_cycle_id: cycle.id, // Connects to the cycle
+      vendor_id: vendor.id,         // Connects to the vendor
       risk_status: isHigh ? 'HIGH' : 'LOW',
       verification_status: 'PENDING'
     });
