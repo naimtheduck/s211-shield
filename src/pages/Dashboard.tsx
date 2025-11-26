@@ -40,10 +40,9 @@ export function Dashboard() {
     if (!user) return;
 
     // 1. GATEKEEPER: Check Membership
-    // If this fails with 500, the RLS SQL fix needs to be run in Supabase.
     const { data: member, error: memberError } = await supabase
       .from('organization_members')
-      .select('company_id')
+      .select('company_id, role')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -56,31 +55,63 @@ export function Dashboard() {
 
     if (!member) {
       // USER HAS NO COMPANY -> FORCE REDIRECT TO ONBOARDING
+      console.log("No membership found - redirecting to onboarding");
       window.location.href = '/onboarding';
       return;
     }
 
+    console.log("✅ User is member of company:", member.company_id);
+
     // 2. Get Active Reporting Cycle
-    const { data: cycle } = await supabase
+    const { data: cycle, error: cycleError } = await supabase
       .from('reporting_cycles')
       .select('id')
       .eq('company_id', member.company_id)
       .eq('is_active', true)
       .maybeSingle();
 
+    if (cycleError) {
+      console.error("Error fetching cycle:", cycleError);
+      alert("Failed to load reporting cycle. Check RLS policies.");
+      setLoading(false);
+      return;
+    }
+
     if (!cycle) {
-      // Auto-recover: Create a cycle if missing (e.g. if onboarding crashed halfway)
-      console.warn("No active cycle found. Attempting auto-recovery...");
-      await supabase.from('reporting_cycles').insert({
+      // Auto-recover: Create a cycle if missing
+      console.warn("⚠️ No active cycle found. Attempting auto-recovery...");
+      
+      const { data: newCycle, error: createError } = await supabase
+        .from('reporting_cycles')
+        .insert({
           company_id: member.company_id,
           year: new Date().getFullYear(),
           name: `${new Date().getFullYear()} Compliance Report`,
           is_active: true
-      });
-      fetchDashboardData(); // Retry fetching
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error("❌ Failed to create cycle:", createError);
+        alert(`Failed to create reporting cycle: ${createError.message}\n\nYou may need to run the RLS fix for reporting_cycles table.`);
+        setLoading(false);
+        return;
+      }
+      
+      console.log("✅ Created new cycle:", newCycle.id);
+      // Continue with the new cycle
+      await loadVendors(newCycle.id);
+      setLoading(false);
       return;
     }
 
+    console.log("✅ Found active cycle:", cycle.id);
+    await loadVendors(cycle.id);
+    setLoading(false);
+  };
+
+  const loadVendors = async (cycleId: string) => {
     // 3. Fetch Vendors
     const { data, error } = await supabase
       .from('company_vendors')
@@ -90,15 +121,15 @@ export function Dashboard() {
         verification_status,
         vendor:vendors ( company_name, contact_email, country )
       `)
-      .eq('reporting_cycle_id', cycle.id)
+      .eq('reporting_cycle_id', cycleId)
       .order('created_at', { ascending: false });
 
-    if (error) console.error('Fetch error:', error);
-    
-    if (data) {
+    if (error) {
+      console.error('Fetch vendors error:', error);
+    } else if (data) {
+      console.log("✅ Loaded vendors:", data.length);
       setVendors(data as any[]);
     }
-    setLoading(false);
   };
 
   const handleManualAdd = async (e: React.FormEvent) => {
@@ -169,7 +200,16 @@ export function Dashboard() {
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading Dashboard...</div>;
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="flex flex-col items-center justify-center py-20">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mb-4"></div>
+          <p className="text-slate-600 font-medium">Loading Dashboard...</p>
+          <p className="text-slate-400 text-sm mt-2">Setting up your workspace</p>
+        </div>
+      </div>
+    );
   }
 
   return (

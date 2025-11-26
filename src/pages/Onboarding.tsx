@@ -13,6 +13,15 @@ export function Onboarding() {
   // 1. CHECK: Do I already have a team?
   useEffect(() => {
     async function checkMembership() {
+      // CRITICAL FIX: Check for pending invite token FIRST
+      const pendingToken = sessionStorage.getItem('pending_invite_token');
+      if (pendingToken) {
+        // They have a pending invite - redirect to accept invite page
+        sessionStorage.removeItem('pending_invite_token');
+        navigate(`/join?token=${pendingToken}`);
+        return;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: member } = await supabase
