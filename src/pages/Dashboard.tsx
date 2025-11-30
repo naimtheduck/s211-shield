@@ -50,7 +50,7 @@ export function Dashboard() {
     // 1. GATEKEEPER: Check Membership
     const { data: member, error: memberError } = await supabase
       .from('organization_members')
-      .select('company_id, role')
+      .select('company_id, role, company:companies ( subscription_status )')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -66,9 +66,10 @@ export function Dashboard() {
       window.location.href = '/onboarding';
       return;
     }
-
+    const isCompanyPremium = member.company?.subscription_status === 'premium';
+    useAuditStore.setState({ isPremium: isCompanyPremium });
     console.log("✅ User is member of company:", member.company_id);
-
+    console.log("💎 Premium Status:", isCompanyPremium);
     // 2. Get Active Reporting Cycle
     // We check for the cycle ONCE here to avoid duplicate variable errors
     const { data: cycle, error: cycleError } = await supabase
