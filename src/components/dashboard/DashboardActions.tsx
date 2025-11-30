@@ -55,15 +55,6 @@ export function DashboardActions({
             Import CSV
           </button>
           
-          {/* Tooltip */}
-          <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-md shadow-xl border border-slate-200 hidden group-hover:block z-20 p-2">
-            <button
-              onClick={onDownloadTemplate}
-              className="text-xs text-blue-600 hover:underline flex items-center w-full font-medium"
-            >
-              <Download size={12} className="mr-1" /> Download CSV Template
-            </button>
-          </div>
         </div>
 
         <button
@@ -76,7 +67,7 @@ export function DashboardActions({
           }`}
         >
           {isPremium ? <Send className="w-4 h-4 mr-2" /> : <Lock className="w-4 h-4 mr-2 text-amber-400" />}
-          Verify Selected ({selectedCount})
+          Send Batch Requests ({selectedCount})
         </button>
       </div>
     </div>

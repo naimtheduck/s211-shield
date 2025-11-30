@@ -1,8 +1,8 @@
 import { 
   AlertTriangle, CheckCircle, Clock, FileText, Trash2, 
-  Lock, Mail, BellRing, Send 
+  Lock, BellRing, Send, History 
 } from 'lucide-react';
-import { useAuditStore } from '@/lib/store';
+import { useAuditStore } from '../../lib/store'; // Adjusted path if needed, usually '@/lib/store' or '../lib/store' depending on your config
 
 interface Vendor {
   id: string;
@@ -19,8 +19,9 @@ interface VendorTableProps {
   onToggleSelect: (id: string) => void;
   onToggleAll: (selected: boolean) => void;
   onDelete: (id: string) => void;
-  onTriggerUpsell: () => void; // Opens the Paywall
-  onSendSingle: (id: string) => void; // Handles single send
+  onTriggerUpsell: () => void;
+  onSendSingle: (id: string) => void;
+  onViewHistory: (id: string) => void; // <--- NEW PROP
 }
 
 export function VendorTable({ 
@@ -30,7 +31,8 @@ export function VendorTable({
   onToggleAll,
   onDelete, 
   onTriggerUpsell,
-  onSendSingle
+  onSendSingle,
+  onViewHistory
 }: VendorTableProps) {
   
   const isPremium = useAuditStore((state) => state.isPremium);
@@ -81,7 +83,7 @@ export function VendorTable({
                 </div>
               </td>
               
-              {/* RISK BADGE (Upsell on Hover) */}
+              {/* RISK BADGE */}
               <td className="px-6 py-4 align-middle relative">
                 <div className="group/tooltip inline-block">
                   {vendor.risk_status === 'HIGH' ? (
@@ -115,7 +117,7 @@ export function VendorTable({
                 <StatusBadge status={vendor.verification_status} />
               </td>
 
-              {/* ACTIONS (The "Trap") */}
+              {/* ACTIONS */}
               <td className="px-6 py-4 text-right align-middle">
                 <div className="flex justify-end items-center gap-2">
                   
@@ -126,7 +128,7 @@ export function VendorTable({
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md text-xs font-bold transition-colors"
                      >
                         {isPremium ? <Send size={12}/> : <Lock size={12}/>}
-                        Send Request
+                        Send Request {/* <--- RENAMED */}
                      </button>
                   )}
 
@@ -148,6 +150,15 @@ export function VendorTable({
                     </button>
                   )}
                   
+                  {/* History Icon */}
+                  <button 
+                    onClick={() => onViewHistory(vendor.id)}
+                    className="text-slate-400 hover:text-blue-600 transition-colors p-1.5 rounded-md hover:bg-slate-100"
+                    title="View History"
+                  >
+                    <History size={16} />
+                  </button>
+
                   <button 
                     onClick={() => onDelete(vendor.id)}
                     className="text-slate-400 hover:text-red-600 transition-colors p-1.5 rounded-md hover:bg-red-50"

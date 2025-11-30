@@ -1,275 +1,290 @@
-import { useState, useEffect, useRef } from 'react';
-import { ShieldCheck, FileText, CheckCircle, Upload, Download, AlertTriangle } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+// src/pages/SupplierPortal.tsx
 
-interface SupplierPortalProps {
-  token: string;
+import { useState, useEffect } from 'react';
+import { Shield, Upload, CheckCircle, FileText, AlertTriangle, Loader2, ChevronDown, ChevronUp, Eye, X, ArrowRight, Trash2, Paperclip } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { toast } from 'sonner';
+
+interface PortalData {
+  company_name: string;
+  vendor_name: string;
+  cocUrl: string | null;
+  status: string;
 }
 
-export function SupplierPortal({ token }: SupplierPortalProps) {
+export function SupplierPortal() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = urlParams.get('token');
+
   const [loading, setLoading] = useState(true);
-  const [vendor, setVendor] = useState<any>(null);
   const [error, setError] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const [data, setData] = useState<PortalData | null>(null);
   
-  // Form State
-  const [forcedLabor, setForcedLabor] = useState(false);
-  const [childLabor, setChildLabor] = useState(false);
-  const [tier1Warranty, setTier1Warranty] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Form States
+  const [agreed, setAgreed] = useState(false);
+  
+  // MULTI-FILE STATE
+  const [files, setFiles] = useState<File[]>([]); 
+  
+  const [uploading, setUploading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const [additionalInfo, setAdditionalInfo] = useState('');
+  const [isDocOpen, setIsDocOpen] = useState(false);
 
   useEffect(() => {
     if (!token) {
-      setError('Invalid or missing token.');
+      setError("Invalid access link or missing token.");
       setLoading(false);
       return;
     }
-    fetchVendor();
+    initPortal();
   }, [token]);
 
-  const fetchVendor = async () => {
-    // RLS Policy: "Vendors can read own data via token"
-    const { data, error } = await supabase
-      .from('vendors')
-      .select('id, company_name, verification_status')
-      .eq('magic_token', token)
-      .single();
-
-    if (error || !data) {
-      setError('Access Denied. This link may have expired or is invalid.');
-    } else {
-      setVendor(data);
-      if (data.verification_status === 'VERIFIED') setSubmitted(true);
-    }
-    setLoading(false);
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
-    }
-  };
-
-  const handleSubmit = async () => {
-    // 1. Validation
-    if (!forcedLabor || !childLabor || !tier1Warranty) {
-      alert('You must acknowledge all compliance statements to proceed.');
-      return;
-    }
-    
-    if (!file) {
-      alert('Please upload the signed certification document.');
-      return;
-    }
-
-    setLoading(true);
-
+  const initPortal = async () => {
     try {
-      // 2. Upload Evidence to Secure Bucket
-      // Path format: vendor_id/timestamp_filename
-      const filePath = `${vendor.id}/${Date.now()}_${file.name}`;
+      const { data, error } = await supabase.functions.invoke('portal-init', { body: { token } });
       
-      const { error: uploadError } = await supabase.storage
-        .from('compliance-docs')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      // 3. Update Vendor Status & Log It
-      const { error: updateError } = await supabase
-        .from('vendors')
-        .update({ 
-          verification_status: 'VERIFIED',
-          // If you have a column for the file path, save it here too
-          // evidence_file: filePath 
-        })
-        .eq('magic_token', token);
-
-      if (updateError) throw updateError;
-
-      // 4. Create Audit Log Entry (The Defense)
-      // Note: RLS must allow public insert to 'compliance_logs' if they have the token
-      await supabase.from('compliance_logs').insert({
-        vendor_id: vendor.id,
-        action_type: 'SIGNED_DECLARATION',
-        details: `Vendor uploaded: ${file.name}`
-      });
-
-      setSubmitted(true);
-    } catch (err) {
-      console.error(err);
-      alert('Submission failed. Please try again or contact support.');
+      if (error || (data && !data.success)) {
+        throw new Error(data?.error || error?.message || "Connection failed");
+      }
+      
+      setData(data.data);
+      if (data.data.status === 'SUBMITTED' || data.data.status === 'VERIFIED') {
+        setSuccess(true);
+      }
+    } catch (err: any) {
+      setError(err.message || "Unknown error occurred");
     } finally {
       setLoading(false);
     }
   };
 
-  // --- RENDER: LOADING / ERROR ---
-  if (loading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 space-y-4">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
-        <p className="text-gray-500 text-sm font-medium">Verifying secure link...</p>
-      </div>
-    );
-  }
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      // Append new files to existing list
+      const newFiles = Array.from(e.target.files);
+      setFiles(prev => [...prev, ...newFiles]);
+    }
+  };
 
-  if (error) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
-        <div className="bg-white p-8 rounded-xl shadow-lg border-t-4 border-red-500 max-w-md text-center">
-          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Link Expired or Invalid</h2>
-          <p className="text-gray-600">{error}</p>
-        </div>
-      </div>
-    );
-  }
+  const removeFile = (index: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+  };
 
-  // --- RENDER: SUCCESS STATE ---
-  if (submitted) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-green-50 px-4">
-        <div className="bg-white p-10 rounded-2xl shadow-xl text-center max-w-lg">
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="w-10 h-10 text-green-600" />
-          </div>
-          <h1 className="text-3xl font-bold text-green-900 mb-2">Compliance Verified</h1>
-          <p className="text-gray-600 mb-6">
-            Thank you, <span className="font-bold text-gray-900">{vendor.company_name}</span>. 
-            Your certification has been securely recorded.
-          </p>
-          <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">
-            Reference ID: {vendor.id.slice(0, 8)}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const handleSubmit = async () => {
+    if (files.length === 0 || !agreed || !data) return;
+    
+    setUploading(true);
+    const uploadedPaths: string[] = [];
 
-  // --- RENDER: MAIN FORM ---
-  return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-lg mx-auto bg-white rounded-xl shadow-xl overflow-hidden border border-gray-200">
+    try {
+      // 1. Loop through files and upload each
+      for (const file of files) {
+        // A. Get Signed URL for THIS file
+        const { data: signData, error: signError } = await supabase.functions.invoke('portal-upload-url', {
+          body: { token, filename: file.name }
+        });
+
+        if (signError || !signData.success) {
+          throw new Error(`Failed to initialize upload for ${file.name}`);
+        }
+
+        // B. Upload to Storage
+        const uploadRes = await fetch(signData.uploadUrl, {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': file.type }
+        });
+
+        if (!uploadRes.ok) throw new Error(`Failed to upload ${file.name}`);
         
-        {/* Header */}
-        <div className="bg-slate-900 p-8 text-white">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-blue-500/20 rounded-lg">
-              <ShieldCheck className="w-8 h-8 text-blue-400" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">Compliance Request</h1>
-              <p className="text-blue-200 text-xs uppercase tracking-wider font-bold">Action Required</p>
-            </div>
+        uploadedPaths.push(signData.path);
+      }
+
+      // 2. Submit all paths to DB
+      const { error: submitError, data: submitData } = await supabase.functions.invoke('portal-submit', {
+        body: { 
+          token, 
+          filePaths: uploadedPaths, // <--- Sending Array
+          additionalInfo 
+        }
+      });
+
+      if (submitError || (submitData && !submitData.success)) {
+        throw new Error(submitData?.error || "Submission failed on server");
+      }
+
+      setSuccess(true);
+      toast.success("All documents submitted successfully!");
+
+    } catch (err: any) {
+      toast.error(err.message);
+      console.error(err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // ... (Keep existing loading/error/success renders) ...
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Loader2 className="animate-spin text-slate-900 w-8 h-8" /></div>;
+  if (error) return <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">...Error UI...</div>; // Use your existing error UI
+  if (success) return <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">...Success UI...</div>; // Use your existing success UI
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900">
+      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-center sticky top-0 z-10">
+        <div className="flex items-center gap-2">
+          <div className="bg-slate-900 text-white p-1.5 rounded">
+            <Shield className="w-5 h-5" />
           </div>
-          <p className="text-slate-400 text-sm mt-4">
-            Vendor: <span className="text-white font-bold text-base ml-1">{vendor.company_name}</span>
-          </p>
+          <span className="font-bold text-lg tracking-tight">S-211 Shield</span>
+        </div>
+      </header>
+
+      <main className="max-w-2xl mx-auto px-4 py-10">
+        <div className="text-center mb-10">
+            <h1 className="text-3xl font-bold text-slate-900 mb-3">Compliance Verification</h1>
+            <p className="text-slate-500 text-lg">Requested by <span className="font-semibold text-slate-900">{data?.company_name}</span></p>
         </div>
 
-        <div className="p-8 space-y-8">
-          
-          {/* Step 1: Download */}
-          <div className="bg-blue-50 p-5 rounded-xl border border-blue-100">
-            <div className="flex justify-between items-start">
-              <div className="flex items-start gap-3">
-                <FileText className="w-5 h-5 text-blue-600 mt-0.5" />
-                <div>
-                  <h3 className="font-bold text-blue-900 text-sm">1. Download Code of Conduct</h3>
-                  <p className="text-xs text-blue-700 mt-1 leading-relaxed">
-                    Review the Canada Bill S-211 standards regarding forced labour and child labour.
-                  </p>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="h-1.5 bg-gray-100 w-full">
+            <div className="h-full bg-slate-900 w-[50%]"></div>
+          </div>
+
+          <div className="p-8 space-y-10">
+            
+            {/* ... (Keep Section 1: Review Standards as is) ... */}
+            {/* Section 1 Placeholder for brevity - insert your existing Section 1 code here */}
+             <section>
+                <div className="flex items-center gap-3 mb-4">
+                    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 font-bold text-sm">1</span>
+                    <h2 className="text-lg font-bold text-slate-900">Review Standards</h2>
                 </div>
-              </div>
-              <button className="text-blue-600 hover:text-blue-800">
-                <Download className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
+                <div onClick={() => setIsDocOpen(true)} className="group border border-gray-200 rounded-xl p-4 hover:border-blue-500 hover:ring-1 hover:ring-blue-500 transition-all cursor-pointer bg-white flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="bg-blue-50 p-3 rounded-lg text-blue-600"><FileText size={24} /></div>
+                        <div>
+                            <p className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">Supplier Code of Conduct</p>
+                            <p className="text-sm text-slate-500">Click to review</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-all"><Eye size={16} /> View</div>
+                </div>
+                <div className="mt-4 pl-2">
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                        <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1 w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" />
+                        <span className="text-sm text-slate-600 leading-relaxed pt-0.5 group-hover:text-slate-900 transition-colors">I certify that <strong>{data?.vendor_name}</strong> has reviewed the Code of Conduct...</span>
+                    </label>
+                </div>
+            </section>
 
-          {/* Step 2: Checkboxes */}
-          <div>
-            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">2. Acknowledge & Certify</h3>
-            <div className="space-y-3">
-              <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
-                <input 
-                  type="checkbox" 
-                  className="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" 
-                  checked={forcedLabor} 
-                  onChange={e => setForcedLabor(e.target.checked)} 
-                />
-                <span className="text-sm text-gray-700">
-                  I certify that our operations are free from forced labour and prison labour.
-                </span>
-              </label>
-              
-              <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
-                <input 
-                  type="checkbox" 
-                  className="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" 
-                  checked={childLabor} 
-                  onChange={e => setChildLabor(e.target.checked)} 
-                />
-                <span className="text-sm text-gray-700">
-                  I certify that we verify the age of all workers and strictly prohibit child labour.
-                </span>
-              </label>
+            <hr className="border-gray-100" />
 
-              {/* The "Pass the Buck" Clause */}
-              <label className="flex items-start gap-3 p-3 border border-amber-200 bg-amber-50 rounded-lg cursor-pointer transition-colors">
-                <input 
-                  type="checkbox" 
-                  className="mt-1 w-4 h-4 text-amber-600 rounded border-amber-300 focus:ring-amber-500" 
-                  checked={tier1Warranty} 
-                  onChange={e => setTier1Warranty(e.target.checked)} 
-                />
-                <span className="text-sm text-gray-800 font-medium">
-                  I warrant that we have exercised due diligence on our own direct suppliers regarding these risks.
-                </span>
-              </label>
-            </div>
-          </div>
+            {/* Section 2: Multi-File Upload */}
+            <section>
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                        <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 font-bold text-sm">2</span>
+                        <h2 className="text-lg font-bold text-slate-900">Upload Evidence</h2>
+                    </div>
+                    <span className="text-xs font-bold bg-gray-100 text-gray-500 px-2 py-1 rounded">Required</span>
+                </div>
 
-          {/* Step 3: Upload */}
-          <div>
-            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">3. Upload Signed Copy</h3>
-            <div 
-              className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all group"
-              onClick={() => fileInputRef.current?.click()}
+                <div className="relative border-2 border-dashed border-gray-300 rounded-xl p-8 hover:border-blue-400 hover:bg-blue-50 transition-all text-center">
+                    <input 
+                        type="file" 
+                        multiple // <--- ENABLE MULTIPLE
+                        accept=".pdf,.jpg,.png" 
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                        onChange={handleFileSelect}
+                    />
+                    <div className="flex flex-col items-center pointer-events-none">
+                        <div className="bg-gray-100 p-3 rounded-full text-gray-500 mb-3">
+                            <Upload size={24} />
+                        </div>
+                        <p className="font-bold text-slate-900">Click to upload documents</p>
+                        <p className="text-sm text-slate-500 mt-1">S-211 Report, Policy, or Certifications</p>
+                    </div>
+                </div>
+
+                {/* File List */}
+                {files.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                        {files.map((f, index) => (
+                            <div key={index} className="flex items-center justify-between bg-white border border-gray-200 p-3 rounded-lg animate-in fade-in slide-in-from-top-1">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-blue-50 text-blue-600 p-2 rounded"><Paperclip size={16} /></div>
+                                    <span className="text-sm font-medium text-slate-700 truncate max-w-[200px]">{f.name}</span>
+                                    <span className="text-xs text-slate-400">({(f.size / 1024 / 1024).toFixed(2)} MB)</span>
+                                </div>
+                                <button onClick={() => removeFile(index)} className="text-slate-400 hover:text-red-500 transition-colors p-1">
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                <div className="mt-6">
+                     <button onClick={() => setShowDetails(!showDetails)} className="flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors">
+                        {showDetails ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+                        {showDetails ? 'Hide notes' : 'Add optional notes'}
+                    </button>
+                    {showDetails && (
+                        <div className="mt-3 animate-in slide-in-from-top-2">
+                            <textarea value={additionalInfo} onChange={(e) => setAdditionalInfo(e.target.value)} placeholder="E.g., We are currently undergoing a Sedex audit..." className="w-full p-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none bg-gray-50" rows={3} />
+                        </div>
+                    )}
+                </div>
+            </section>
+
+            {/* Submit Button */}
+            <button
+                onClick={handleSubmit}
+                disabled={!agreed || files.length === 0 || uploading}
+                className="w-full bg-slate-900 text-white font-bold text-lg py-4 rounded-xl shadow-lg hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 transform active:scale-[0.99]"
             >
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                accept=".pdf,.jpg,.png"
-                onChange={handleFileChange}
+                {uploading ? <><Loader2 className="animate-spin" size={24}/> Submitting...</> : <>Submit Verification <ArrowRight size={20} /></>}
+            </button>
+
+            {/* Escape Hatch */}
+            <div className="text-center mt-2">
+                <a 
+                    href={`mailto:compliance@${data?.company_name.replace(/\s+/g, '').toLowerCase()}.com`}
+                    className="text-xs text-slate-400 hover:text-slate-600 underline"
+                >
+                    Cannot certify? Contact us directly.
+                </a>
+            </div>
+
+          </div>
+        </div>
+      </main>
+      
+      {/* ... (Keep PDF Modal) ... */}
+      {isDocOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-white">
+              <h3 className="font-bold text-slate-900 flex items-center gap-2"><FileText size={20} className="text-blue-600"/> Supplier Code of Conduct</h3>
+              <button onClick={() => setIsDocOpen(false)} className="p-2 hover:bg-gray-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"><X size={24} /></button>
+            </div>
+            <div className="flex-1 bg-slate-100 relative">
+              <iframe 
+                src={data?.cocUrl ? `${data.cocUrl}#toolbar=0&navpanes=0&view=FitH` : ''} 
+                className="w-full h-full" 
+                title="Code of Conduct" 
               />
-              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3 group-hover:bg-white transition-colors">
-                <Upload className="w-6 h-6 text-gray-400 group-hover:text-blue-500" />
-              </div>
-              <p className="text-sm font-medium text-gray-900">
-                {file ? file.name : 'Click to upload signed document'}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">PDF, JPG or PNG (Max 10MB)</p>
+            </div>
+            <div className="p-4 border-t border-gray-100 bg-white flex justify-end gap-3">
+              <button onClick={() => setIsDocOpen(false)} className="text-slate-600 font-bold px-4 py-2 hover:bg-gray-50 rounded-lg">Close</button>
+              <button onClick={() => { setIsDocOpen(false); setAgreed(true); }} className="bg-slate-900 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-800 transition-colors shadow-sm">I Agree & Accept</button>
             </div>
           </div>
-
-          {/* Submit */}
-          <button 
-            onClick={handleSubmit}
-            disabled={loading}
-            className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {loading ? 'Processing...' : 'Submit Certification'}
-          </button>
-          
-          <p className="text-center text-xs text-gray-400">
-            Securely encrypted & timestamped for audit purposes.
-          </p>
         </div>
-      </div>
+      )}
     </div>
   );
 }
