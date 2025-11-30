@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Settings } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Header } from '../components/Header';
 import { useAuditStore } from '../lib/store';
@@ -12,6 +12,7 @@ import { CampaignReviewModal } from '../components/dashboard/CampaignReviewModal
 import { HistoryDrawer } from '../components/dashboard/HistoryDrawer';
 import { ReportBuilderModal } from '../components/dashboard/ReportBuilderModal';
 import { VendorAnalysisModal } from '../components/dashboard/VendorAnalysisModal';
+import { AutomationModal } from '../components/dashboard/AutomationModal';
 import { generateS211Report } from '../lib/pdf-generator';
 import { toast } from 'sonner';
 
@@ -48,6 +49,9 @@ export function Dashboard() {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
   const [analysisVendor, setAnalysisVendor] = useState<any>(null);
+
+  // Automation State
+  const [isAutomationOpen, setIsAutomationOpen] = useState(false);
 
   // Data States
   const [cycleId, setCycleId] = useState<string | null>(null);
@@ -211,7 +215,7 @@ export function Dashboard() {
     const verifiedTargets = targets.filter(v => v.verification_status === 'VERIFIED');
     
     if (verifiedTargets.length === 0) {
-      toast.error("No verified vendors to analyze.");
+      toast.error("None of the selected vendors have verified evidence to analyze.");
       return;
     }
 
@@ -262,15 +266,15 @@ export function Dashboard() {
     setIsHistoryOpen(true); 
   };
 
-  // --- SMART REPORT GENERATION ---
+  // --- AUTO-ANALYZE & REPORT GEN (UPDATED) ---
   const handleGenerateReport = async () => {
     if (!isPremium) { setShowPaywall(true); return; }
     
-    // Check if any verified vendors are missing AI Analysis
+    // Identify vendors that need analysis (Verified but no summary)
     const unanalyzed = vendors.filter(v => v.verification_status === 'VERIFIED' && !v.ai_risk_summary);
     
     if (unanalyzed.length > 0) {
-        const toastId = toast.loading(`Analyzing ${unanalyzed.length} verified vendors...`);
+        const toastId = toast.loading(`Analyzing ${unanalyzed.length} verified vendors before reporting...`);
         
         // Run parallel analysis
         await Promise.all(unanalyzed.map(v => 
@@ -302,7 +306,6 @@ export function Dashboard() {
   // --- VIEW CERTIFICATE HANDLER ---
   const handleViewCert = async (vendorId: string) => {
     try {
-        // 1. Find the latest submitted request for this vendor
         const { data: requests, error } = await supabase
             .from('supplier_requests')
             .select('evidence_files')
@@ -316,18 +319,18 @@ export function Dashboard() {
             return;
         }
 
-        // 2. Get the first file from the evidence array
-        // Note: evidence_files is jsonb, so we treat it as array
         const files = requests[0].evidence_files as any[];
         if (!files || files.length === 0) {
             toast.error("No files in evidence.");
             return;
         }
 
-        // 3. Generate Signed URL
+        // Open the most recent file
+        const latestFile = files[files.length - 1];
+        
         const { data: signedData, error: signError } = await supabase.storage
             .from('compliance-docs')
-            .createSignedUrl(files[0].path, 60); 
+            .createSignedUrl(latestFile.path, 60); 
 
         if (signError || !signedData) throw new Error("Could not access file.");
 
@@ -344,7 +347,17 @@ export function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-slate-900">
       <Header />
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      {/* Automation Settings Button */}
+      <div className="max-w-7xl mx-auto px-4 pt-8 flex justify-end">
+          <button 
+            onClick={() => setIsAutomationOpen(true)}
+            className="text-slate-500 hover:text-purple-600 flex items-center gap-2 text-sm font-medium transition-colors"
+          >
+            <Settings size={16} /> Automation Settings
+          </button>
+      </div>
+
+      <main className="max-w-7xl mx-auto px-4 pb-8 pt-2">
         <DashboardActions
            onManualAdd={() => setIsAddModalOpen(true)}
            onImportClick={() => setIsImportOpen(true)}
@@ -390,17 +403,18 @@ export function Dashboard() {
           onSendSingle={handleSingleVerifyClick}
           onViewHistory={handleViewHistory}
           onAnalyze={handleAnalyze}
-          onViewCert={handleViewCert} // <--- CONNECTED
+          onViewCert={handleViewCert}
         />
       </main>
 
-      {/* Modals */}
+      {/* ... Modals ... */}
       {isAddModalOpen && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"><div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-8 relative"><button onClick={() => setIsAddModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X size={20}/></button><h2 className="text-2xl font-bold text-slate-900 mb-6">Add New Vendor</h2><form onSubmit={handleManualAdd} className="space-y-5"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Company Name</label><input className="w-full p-3 border border-slate-300 rounded-lg" value={newVendor.name} onChange={e => setNewVendor({...newVendor, name: e.target.value})} required /></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Contact Email</label><input type="email" className="w-full p-3 border border-slate-300 rounded-lg" value={newVendor.email} onChange={e => setNewVendor({...newVendor, email: e.target.value})} required /></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Country</label><input className="w-full p-3 border border-slate-300 rounded-lg" value={newVendor.country} onChange={e => setNewVendor({...newVendor, country: e.target.value})} required /></div><button type="submit" className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-lg hover:bg-slate-800 mt-2">Save Vendor</button></form></div></div>)}
       <CsvImportWizard isOpen={isImportOpen} onClose={() => setIsImportOpen(false)} onSuccess={() => fetchDashboardData()} cycleId={cycleId} />
       <CampaignReviewModal isOpen={isReviewModalOpen} onClose={() => setIsReviewModalOpen(false)} onSend={executeCampaign} onTest={sendTestEmail} recipientCount={reviewTarget === 'batch' ? selectedIds.size : 1} recipientLabel={reviewTarget === 'batch' ? `${selectedIds.size} selected vendors` : vendors.find(v => v.id === reviewTarget)?.vendor?.company_name || 'Vendor'} />
       <HistoryDrawer isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} companyVendorId={historyVendorId} />
       <ReportBuilderModal isOpen={isReportModalOpen} onClose={() => setIsReportModalOpen(false)} cycleId={cycleId} companyName={companyName} vendors={vendors} />
       <VendorAnalysisModal isOpen={isAnalysisOpen} onClose={() => setIsAnalysisOpen(false)} vendor={analysisVendor} onSave={fetchDashboardData} />
+      <AutomationModal isOpen={isAutomationOpen} onClose={() => setIsAutomationOpen(false)} />
       <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} />
     </div>
   );

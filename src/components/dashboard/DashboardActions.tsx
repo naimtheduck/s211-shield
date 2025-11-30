@@ -62,7 +62,6 @@ export function DashboardActions({
               onClick={onDownloadTemplate}
               className="text-xs text-blue-600 hover:underline flex items-center w-full font-medium"
             >
-              <Download size={12} className="mr-1" /> Download CSV Template
             </button>
           </div>
         </div>
@@ -91,7 +90,7 @@ export function DashboardActions({
           }`}
         >
           {isPremium ? <Send className="w-4 h-4 mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
-          Verify ({selectedCount})
+          Send email ({selectedCount})
         </button>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Zap, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, Zap, Clock, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';
 
