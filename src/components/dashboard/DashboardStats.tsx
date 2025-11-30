@@ -34,7 +34,7 @@ export function DashboardStats({ total, highRisk, verified }: DashboardStatsProp
       {/* Verified (Green) */}
       <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between transition-all hover:shadow-md border-l-4 border-l-green-500">
         <div>
-          <p className="text-xs text-slate-500 uppercase font-bold tracking-wider">Verified Compliant</p>
+          <p className="text-xs text-slate-500 uppercase font-bold tracking-wider">Verified</p>
           <p className="text-3xl font-extrabold text-green-600 mt-1">{verified}</p>
         </div>
         <div className="p-3 bg-green-50 rounded-full text-green-600">

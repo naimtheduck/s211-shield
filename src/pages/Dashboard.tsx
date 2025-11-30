@@ -8,13 +8,14 @@ import { DashboardStats } from '../components/dashboard/DashboardStats';
 import { DashboardActions } from '../components/dashboard/DashboardActions';
 import { VendorTable } from '../components/dashboard/VendorTable';
 import { CsvImportWizard } from '../components/dashboard/CsvImportWizard';
-import { CampaignReviewModal } from '../components/dashboard/CampaignReviewModal'; // Ensure this exists
-import { HistoryDrawer } from '../components/dashboard/HistoryDrawer'; // Ensure this exists
-import { ReportBuilderModal } from '../components/dashboard/ReportBuilderModal'; // Ensure this exists
+import { CampaignReviewModal } from '../components/dashboard/CampaignReviewModal';
+import { HistoryDrawer } from '../components/dashboard/HistoryDrawer';
+import { ReportBuilderModal } from '../components/dashboard/ReportBuilderModal';
+import { VendorAnalysisModal } from '../components/dashboard/VendorAnalysisModal';
 import { generateS211Report } from '../lib/pdf-generator';
 import { toast } from 'sonner';
 
-interface DashboardVendor {
+interface DashboardVendorDB {
   id: string;
   vendor: {
     company_name: string;
@@ -23,10 +24,12 @@ interface DashboardVendor {
   };
   risk_status: 'HIGH' | 'LOW';
   verification_status: 'PENDING' | 'SENT' | 'VERIFIED';
+  ai_risk_summary?: string;
+  remediation_plan?: string;
 }
 
 export function Dashboard() {
-  const [vendors, setVendors] = useState<DashboardVendor[]>([]);
+  const [vendors, setVendors] = useState<DashboardVendorDB[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -35,16 +38,16 @@ export function Dashboard() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   
-  // Campaign Review States
+  // Campaign & History States
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [reviewTarget, setReviewTarget] = useState<'batch' | string>('batch');
-
-  // History Drawer States
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [historyVendorId, setHistoryVendorId] = useState<string | null>(null);
 
-  // Report Builder State
+  // Analysis & Report States
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
+  const [analysisVendor, setAnalysisVendor] = useState<any>(null);
 
   // Data States
   const [cycleId, setCycleId] = useState<string | null>(null);
@@ -82,10 +85,8 @@ export function Dashboard() {
       return;
     }
 
-    if (member.company?.name) {
-        setCompanyName(member.company.name);
-    }
-
+    if (member.company?.name) setCompanyName(member.company.name);
+    
     const isCompanyPremium = member.company?.subscription_status === 'premium';
     useAuditStore.setState({ isPremium: isCompanyPremium });
 
@@ -134,6 +135,8 @@ export function Dashboard() {
         id,
         risk_status,
         verification_status,
+        ai_risk_summary,
+        remediation_plan,
         vendor:vendors ( company_name, contact_email, country )
       `)
       .eq('reporting_cycle_id', id)
@@ -183,15 +186,6 @@ export function Dashboard() {
     }
   };
 
-  const handleGenerateReport = () => {
-    if (!isPremium) { 
-        setShowPaywall(true); 
-        return; 
-    }
-    // Open the Builder Modal instead of downloading immediately
-    setIsReportModalOpen(true);
-  };
-
   const handleDelete = async (id: string) => {
     if (!confirm('Remove vendor from this report?')) return;
     const { error } = await supabase.from('company_vendors').delete().eq('id', id);
@@ -200,13 +194,38 @@ export function Dashboard() {
     }
   };
 
-  // --- Campaign Handlers ---
+  // --- Handlers ---
 
   const handleBatchVerifyClick = () => {
     if (!isPremium) { setShowPaywall(true); return; }
     if (selectedIds.size === 0) return;
     setReviewTarget('batch');
     setIsReviewModalOpen(true);
+  };
+
+  const handleBatchAnalyzeClick = async () => {
+    if (!isPremium) { setShowPaywall(true); return; }
+    if (selectedIds.size === 0) return;
+
+    const targets = vendors.filter(v => selectedIds.has(v.id));
+    const verifiedTargets = targets.filter(v => v.verification_status === 'VERIFIED');
+    
+    if (verifiedTargets.length === 0) {
+      toast.error("No verified vendors to analyze.");
+      return;
+    }
+
+    toast.info(`Starting analysis on ${verifiedTargets.length} vendors...`);
+
+    await Promise.all(verifiedTargets.map(async (v) => {
+       const { error } = await supabase.functions.invoke('analyze-single-vendor', {
+         body: { companyVendorId: v.id }
+       });
+       if (error) console.error(`Failed to analyze ${v.vendor.company_name}`);
+    }));
+
+    toast.success("Batch Analysis Complete!");
+    fetchDashboardData();
   };
 
   const handleSingleVerifyClick = (id: string) => {
@@ -216,68 +235,108 @@ export function Dashboard() {
   };
 
   const executeCampaign = async (subject: string, body: string) => {
-    console.log("🚀 Executing Campaign:", { subject, body });
+    let targets = reviewTarget === 'batch' ? Array.from(selectedIds) : [reviewTarget];
     
-    let targets: string[] = [];
-    if (reviewTarget === 'batch') {
-      targets = Array.from(selectedIds);
-    } else {
-      targets = [reviewTarget];
+    const { error } = await supabase.functions.invoke('send-campaign', {
+      body: { ids: targets, subject, body }
+    });
+
+    if (error) {
+      toast.error("Failed to send: " + error.message);
+      return;
     }
 
-    try {
-      toast.loading("Sending campaign...");
-
-      // Call your Supabase Edge Function
-      const { error } = await supabase.functions.invoke('send-campaign', {
-        body: { ids: targets, subject, body }
-      });
-
-      if (error) throw error;
-
-      toast.dismiss();
-      toast.success(`Campaign sent to ${targets.length} vendors!`);
-      
-      // Optimistic UI Update
-      setVendors(prev => prev.map(v => 
-        targets.includes(v.id) 
-          ? { ...v, verification_status: 'SENT' } 
-          : v
-      ));
-      
-      if (reviewTarget === 'batch') setSelectedIds(new Set());
-
-    } catch (err: any) {
-      toast.dismiss();
-      toast.error("Failed to send campaign: " + err.message);
-    }
+    toast.success("Sent!");
+    setVendors(prev => prev.map(v => targets.includes(v.id) ? { ...v, verification_status: 'SENT' } : v));
+    if (reviewTarget === 'batch') setSelectedIds(new Set());
   };
 
   const sendTestEmail = async (subject: string, body: string) => {
-    try {
-      toast.info("Sending test request...");
-      
-      const { data, error } = await supabase.functions.invoke('send-campaign', {
-        body: { 
-          test_mode: true, 
-          subject, 
-          body 
-        }
-      });
+    toast.info("Sending test...");
+    await supabase.functions.invoke('send-campaign', { body: { test_mode: true, subject, body } });
+    toast.success("Test email sent.");
+  };
 
-      if (error) throw error;
-      
-      toast.success("Test email sent! Check your inbox.");
-    } catch (err: any) {
-      console.error("Test Email Error:", err);
-      toast.error("Test failed: " + err.message);
+  const handleViewHistory = (id: string) => { 
+    setHistoryVendorId(id); 
+    setIsHistoryOpen(true); 
+  };
+
+  // --- SMART REPORT GENERATION ---
+  const handleGenerateReport = async () => {
+    if (!isPremium) { setShowPaywall(true); return; }
+    
+    // Check if any verified vendors are missing AI Analysis
+    const unanalyzed = vendors.filter(v => v.verification_status === 'VERIFIED' && !v.ai_risk_summary);
+    
+    if (unanalyzed.length > 0) {
+        const toastId = toast.loading(`Analyzing ${unanalyzed.length} verified vendors...`);
+        
+        // Run parallel analysis
+        await Promise.all(unanalyzed.map(v => 
+             supabase.functions.invoke('analyze-single-vendor', { body: { companyVendorId: v.id } })
+        ));
+        
+        toast.dismiss(toastId);
+        await fetchDashboardData(); // Refresh so the report builder has the new data
+    }
+
+    setIsReportModalOpen(true);
+  };
+
+  const handleAnalyze = (vendorId: string) => {
+    if (!isPremium) { setShowPaywall(true); return; }
+    const v = vendors.find(item => item.id === vendorId);
+    
+    if (v?.verification_status !== 'VERIFIED') {
+      toast.error("Cannot analyze: Vendor has not uploaded evidence yet.");
+      return;
+    }
+
+    if (v) {
+      setAnalysisVendor(v);
+      setIsAnalysisOpen(true);
     }
   };
 
-  // --- History Handler ---
-  const handleViewHistory = (id: string) => {
-    setHistoryVendorId(id);
-    setIsHistoryOpen(true);
+  // --- VIEW CERTIFICATE HANDLER ---
+  const handleViewCert = async (vendorId: string) => {
+    try {
+        // 1. Find the latest submitted request for this vendor
+        const { data: requests, error } = await supabase
+            .from('supplier_requests')
+            .select('evidence_files')
+            .eq('company_vendor_id', vendorId)
+            .eq('status', 'SUBMITTED')
+            .order('created_at', { ascending: false })
+            .limit(1);
+        
+        if (error || !requests || requests.length === 0) {
+            toast.error("No certificate found.");
+            return;
+        }
+
+        // 2. Get the first file from the evidence array
+        // Note: evidence_files is jsonb, so we treat it as array
+        const files = requests[0].evidence_files as any[];
+        if (!files || files.length === 0) {
+            toast.error("No files in evidence.");
+            return;
+        }
+
+        // 3. Generate Signed URL
+        const { data: signedData, error: signError } = await supabase.storage
+            .from('compliance-docs')
+            .createSignedUrl(files[0].path, 60); 
+
+        if (signError || !signedData) throw new Error("Could not access file.");
+
+        window.open(signedData.signedUrl, '_blank');
+
+    } catch (err) {
+        console.error(err);
+        toast.error("Failed to open certificate.");
+    }
   };
 
   if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading...</div>;
@@ -290,6 +349,7 @@ export function Dashboard() {
            onManualAdd={() => setIsAddModalOpen(true)}
            onImportClick={() => setIsImportOpen(true)}
            onVerify={handleBatchVerifyClick}
+           onAnalyzeBatch={handleBatchAnalyzeClick}
            onGenerateReport={handleGenerateReport}
            onDownloadTemplate={() => {}}
            uploading={false}
@@ -304,13 +364,16 @@ export function Dashboard() {
         />
 
         <VendorTable
+          // Flatten nested DB response for table
           vendors={vendors.map(v => ({
             id: v.id,
-            company_name: v.vendor?.company_name || 'Unknown',
+            company_name: v.vendor?.company_name || 'Unknown Vendor',
             contact_email: v.vendor?.contact_email || 'No Email',
             country: v.vendor?.country || 'Unknown',
             risk_status: v.risk_status,
-            verification_status: v.verification_status
+            verification_status: v.verification_status,
+            ai_risk_summary: v.ai_risk_summary,
+            remediation_plan: v.remediation_plan
           }))}
           selectedIds={selectedIds}
           onToggleSelect={(id) => {
@@ -326,69 +389,18 @@ export function Dashboard() {
           onTriggerUpsell={() => setShowPaywall(true)}
           onSendSingle={handleSingleVerifyClick}
           onViewHistory={handleViewHistory}
+          onAnalyze={handleAnalyze}
+          onViewCert={handleViewCert} // <--- CONNECTED
         />
       </main>
 
-      {/* Manual Add Modal */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-8 relative">
-              <button onClick={() => setIsAddModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X size={20}/></button>
-              <h2 className="text-2xl font-bold text-slate-900 mb-6">Add New Vendor</h2>
-              <form onSubmit={handleManualAdd} className="space-y-5">
-                 <div>
-                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Company Name</label>
-                   <input className="w-full p-3 border border-slate-300 rounded-lg" value={newVendor.name} onChange={e => setNewVendor({...newVendor, name: e.target.value})} required />
-                 </div>
-                 <div>
-                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Contact Email</label>
-                   <input type="email" className="w-full p-3 border border-slate-300 rounded-lg" value={newVendor.email} onChange={e => setNewVendor({...newVendor, email: e.target.value})} required />
-                 </div>
-                 <div>
-                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Country</label>
-                   <input className="w-full p-3 border border-slate-300 rounded-lg" value={newVendor.country} onChange={e => setNewVendor({...newVendor, country: e.target.value})} required />
-                 </div>
-                 <button type="submit" className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-lg hover:bg-slate-800 mt-2">Save Vendor</button>
-              </form>
-           </div>
-        </div>
-      )}
-
-      <CsvImportWizard 
-        isOpen={isImportOpen} 
-        onClose={() => setIsImportOpen(false)} 
-        onSuccess={() => fetchDashboardData()}
-        cycleId={cycleId} 
-      />
-
-      <CampaignReviewModal 
-        isOpen={isReviewModalOpen}
-        onClose={() => setIsReviewModalOpen(false)}
-        onSend={executeCampaign}
-        onTest={sendTestEmail}
-        recipientCount={reviewTarget === 'batch' ? selectedIds.size : 1}
-        recipientLabel={
-          reviewTarget === 'batch' 
-            ? `${selectedIds.size} selected vendors`
-            : vendors.find(v => v.id === reviewTarget)?.vendor?.company_name || 'Vendor'
-        }
-      />
-
-      <HistoryDrawer 
-        isOpen={isHistoryOpen} 
-        onClose={() => setIsHistoryOpen(false)} 
-        companyVendorId={historyVendorId} 
-      />
-
-      {/* --- REPORT BUILDER MODAL --- */}
-      <ReportBuilderModal
-        isOpen={isReportModalOpen}
-        onClose={() => setIsReportModalOpen(false)}
-        cycleId={cycleId}
-        companyName={companyName}
-        vendors={vendors}
-      />
-
+      {/* Modals */}
+      {isAddModalOpen && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"><div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-8 relative"><button onClick={() => setIsAddModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X size={20}/></button><h2 className="text-2xl font-bold text-slate-900 mb-6">Add New Vendor</h2><form onSubmit={handleManualAdd} className="space-y-5"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Company Name</label><input className="w-full p-3 border border-slate-300 rounded-lg" value={newVendor.name} onChange={e => setNewVendor({...newVendor, name: e.target.value})} required /></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Contact Email</label><input type="email" className="w-full p-3 border border-slate-300 rounded-lg" value={newVendor.email} onChange={e => setNewVendor({...newVendor, email: e.target.value})} required /></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Country</label><input className="w-full p-3 border border-slate-300 rounded-lg" value={newVendor.country} onChange={e => setNewVendor({...newVendor, country: e.target.value})} required /></div><button type="submit" className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-lg hover:bg-slate-800 mt-2">Save Vendor</button></form></div></div>)}
+      <CsvImportWizard isOpen={isImportOpen} onClose={() => setIsImportOpen(false)} onSuccess={() => fetchDashboardData()} cycleId={cycleId} />
+      <CampaignReviewModal isOpen={isReviewModalOpen} onClose={() => setIsReviewModalOpen(false)} onSend={executeCampaign} onTest={sendTestEmail} recipientCount={reviewTarget === 'batch' ? selectedIds.size : 1} recipientLabel={reviewTarget === 'batch' ? `${selectedIds.size} selected vendors` : vendors.find(v => v.id === reviewTarget)?.vendor?.company_name || 'Vendor'} />
+      <HistoryDrawer isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} companyVendorId={historyVendorId} />
+      <ReportBuilderModal isOpen={isReportModalOpen} onClose={() => setIsReportModalOpen(false)} cycleId={cycleId} companyName={companyName} vendors={vendors} />
+      <VendorAnalysisModal isOpen={isAnalysisOpen} onClose={() => setIsAnalysisOpen(false)} vendor={analysisVendor} onSave={fetchDashboardData} />
       <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} />
     </div>
   );

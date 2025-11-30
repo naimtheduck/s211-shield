@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-// Updated Signature: accepts 'reportBody'
+// Updated Signature: accepts 'reportBody' as the 4th argument
 export const generateS211Report = (
   companyName: string, 
   vendors: any[], 
@@ -31,13 +31,13 @@ export const generateS211Report = (
   doc.setFontSize(11);
   doc.setFont("helvetica", "normal");
   
-  // This splits the long AI text into multi-line PDF text
+  // This splits the long AI text into multi-line PDF text that fits the page width
+  // 180 is the max width (A4 width is ~210mm, minus margins)
   const splitBody = doc.splitTextToSize(reportBody, 180);
   doc.text(splitBody, 14, 30);
 
   // --- 3. Mandatory Attestation ---
-  // We add this dynamically at the end of the text or on a new page if text is long
-  // For simplicity, let's force a new page for the signatures/tables
+  // We force a new page for the signatures to look clean and official
   doc.addPage();
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
@@ -72,9 +72,9 @@ export const generateS211Report = (
     head: [['Vendor', 'Jurisdiction', 'Risk Profile', 'Status']],
     body: tableData,
     startY: 30,
-    headStyles: { fillColor: [15, 23, 42] }, // Slate-900
+    headStyles: { fillColor: [15, 23, 42] }, // Slate-900 style to match your brand
   });
 
-  // Save the file
+  // Save the file with a clean name
   doc.save(`${companyName.replace(/\s+/g, '_')}_S211_Report.pdf`);
 };
