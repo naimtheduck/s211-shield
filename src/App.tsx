@@ -11,7 +11,7 @@ import { AcceptInvite } from './pages/AcceptInvite';
 import { useAuditStore } from './lib/store';
 import { supabase } from './lib/supabase';
 import { Toaster } from 'sonner';
-import { Loader2 } from 'lucide-react'; // Need to import Loader2 for loading state
+import { Loader2 } from 'lucide-react'; 
 
 function App() {
   const path = useRouter();
@@ -26,7 +26,6 @@ function App() {
       } = await supabase.auth.getSession();
       setIsLoggedIn(!!session);
       
-      // Post-login invite redirect (if session is established after the token was saved)
       if (session) {
         const pendingToken = sessionStorage.getItem('pending_invite_token');
         if (pendingToken) {
@@ -40,7 +39,6 @@ function App() {
 
     checkSession();
 
-    // Subscribe to auth state changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
@@ -73,9 +71,7 @@ function App() {
       return <AcceptInvite />;
     }
     
-    // /verify route needs the token from window.location.search
     if (path.startsWith('/verify')) {
-      // Access token directly from search params, as in the original working version
       const params = new URLSearchParams(window.location.search);
       const token = params.get('token');
       return <SupplierPortal token={token || ''} />;
@@ -87,18 +83,19 @@ function App() {
     // 2. Protected Routes (Logged In Users Only)
     if (isLoggedIn) {
       
-      // If logged in, prioritize internal app routes
+      // Handle known app routes first
       if (path.startsWith('/dashboard')) return <Dashboard />;
       if (path === '/onboarding') return <Onboarding />;
       if (path === '/team') return <TeamSettings />;
-
-      // If user is logged in but lands on '/' or another public route, redirect to dashboard.
-      if (path === '/' || path === '/landing') {
-          window.history.replaceState({}, '', '/dashboard');
-          return <Dashboard />;
+      
+      // If user is logged in but lands on '/' or Landing page, redirect to onboarding.
+      if (path === '/' || path === '/landing' || path === '/onboarding') {
+          // This ensures all new users start the setup process.
+          window.history.replaceState({}, '', '/onboarding');
+          return <Onboarding />;
       }
       
-      // Default Redirect for unknown protected routes
+      // Final fallback for unknown protected paths
       window.history.replaceState({}, '', '/dashboard');
       return <Dashboard />;
     }
