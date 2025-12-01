@@ -3,21 +3,14 @@ import { useNavigate } from '../lib/router';
 import { supabase } from '../lib/supabase';
 import { Building2, ArrowRight, Loader2 } from 'lucide-react';
 import { Header } from '../components/Header';
-import { toast } from 'sonner'; // Assuming sonner is used for success messages
-
-// Helper function to handle clean, loop-proof redirection (Crucial for deployed stability)
-const safeRedirect = (path: string) => {
-    window.history.replaceState(null, '', path);
-    window.location.reload(); 
-};
+import { toast } from 'sonner';
 
 export function Onboarding() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [checking, setChecking] = useState(true); // New loading state for check
+  const [checking, setChecking] = useState(true);
   const [companyName, setCompanyName] = useState('');
 
-  // --- 1. Core Authorization Check ---
   useEffect(() => {
     async function checkMembership() {
       setChecking(true);
@@ -32,7 +25,7 @@ export function Onboarding() {
       const pendingToken = sessionStorage.getItem('pending_invite_token');
       if (pendingToken) {
         sessionStorage.removeItem('pending_invite_token');
-        safeRedirect(`/join?token=${pendingToken}`);
+        navigate(`/join?token=${pendingToken}`);
         return;
       }
 
@@ -44,18 +37,17 @@ export function Onboarding() {
         .maybeSingle();
       
       if (member) {
-        // User is already set up. Redirect immediately and cleanly.
+        // User is already set up. Redirect to dashboard
         console.log("User already has a team. Redirecting to dashboard.");
-        safeRedirect('/dashboard'); 
+        navigate('/dashboard');
         return;
       }
       
       setChecking(false); // Done checking, show form
     }
     checkMembership();
-  }, []);
+  }, [navigate]);
 
-  // --- 2. Company Creation Logic ---
   const handleSetup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!companyName.trim()) return;
@@ -96,8 +88,9 @@ export function Onboarding() {
 
       if (cycleError) throw cycleError;
 
-      // 4. Redirect (Success)
-      safeRedirect('/dashboard'); 
+      // 4. Redirect (Success) - Use navigate instead of location reload
+      toast.success('Workspace created successfully!');
+      navigate('/dashboard');
 
     } catch (err: any) {
       console.error("Setup Error:", err);
