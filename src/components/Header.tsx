@@ -6,7 +6,8 @@ import { t } from '../lib/translations';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from '../lib/router';
 import { LoginModal } from './LoginModal';
-import { LayoutDashboard, Users } from 'lucide-react';
+// Added Linkedin to imports
+import { LayoutDashboard, Users, Linkedin } from 'lucide-react';
 
 export function Header({ onLogout }: { onLogout?: () => void }) {
   const language = useAuditStore((state) => state.language);
@@ -77,15 +78,13 @@ export function Header({ onLogout }: { onLogout?: () => void }) {
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            {/* --- UPDATED LOGO & NAME SECTION --- */}
+            {/* --- LOGO & NAME SECTION --- */}
             <div className="flex items-center cursor-pointer" onClick={() => navigate('/')}>
-              {/* Replace '/logo.png' with your actual file name in the public folder */}
               <img 
                 src="/logo.png" 
                 alt="The Compass Labs Logo" 
                 className="w-10 h-10 object-contain rounded-lg"
                 onError={(e) => {
-                  // Fallback if image fails to load
                   e.currentTarget.style.display = 'none';
                   e.currentTarget.nextElementSibling?.classList.remove('hidden');
                 }}
@@ -99,9 +98,21 @@ export function Header({ onLogout }: { onLogout?: () => void }) {
                 The Compass Labs
               </span>
             </div>
-            {/* --- END UPDATED SECTION --- */}
 
             <div className="flex items-center space-x-2">
+              
+              {/* --- NEW CONTACT SECTION --- */}
+              <a
+                href="https://www.linkedin.com/in/alejandro-monge1/" // <--- PASTE YOUR LINKEDIN URL HERE
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              >
+                <Linkedin className="w-4 h-4 mr-2" />
+                Contact
+              </a>
+              {/* --------------------------- */}
+
               <button
                 onClick={toggleLanguage}
                 className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
