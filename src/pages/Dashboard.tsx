@@ -88,13 +88,15 @@ export function Dashboard() {
 
     // --- CRITICAL FIX FOR REDIRECT LOOP ---
     if (!member) {
-      console.log("No membership found - redirecting to onboarding.");
-      // Use replaceState to remove /dashboard from history, preventing the back-button loop.
+      // If no membership is found, the user MUST be sent to the onboarding flow.
+      // App.tsx handles the initial redirect, but if user navigates here directly, 
+      // we must enforce the redirect. However, to prevent a loop, we navigate without 
+      // returning an error state to the browser history.
       window.history.replaceState(null, '', '/onboarding');
-      window.location.reload(); 
+      window.location.reload(); // Force browser to process the new path immediately
       return;
     }
-    // --------------------------------------
+    // -------------------------------------------------
 
 
     if (member.company?.name) setCompanyName(member.company.name);
