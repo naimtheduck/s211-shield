@@ -72,7 +72,7 @@ export function Landing() {
                 <Lock className="w-10 h-10 text-amber-600 mb-4" />
                 <h3 className="text-xl font-bold text-amber-900 mb-2">Operational Risk</h3>
                 <p className="text-amber-800/80">
-                  If you find too much, the CBSA can seize your goods at the border. You need a <strong>defensible position</strong>, not deep mapping.
+                  The CBSA can seize your goods at the border. You need a <strong>defensible position</strong>, not deep mapping.
                 </p>
               </div>
             </div>

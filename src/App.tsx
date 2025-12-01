@@ -2,28 +2,40 @@ import { useEffect, useState } from 'react';
 import { useRouter } from './lib/router';
 import { Landing } from './pages/Landing';
 import { Dashboard } from './pages/Dashboard';
-import { SupplierPortal } from './pages/SupplierPortal'; 
+import { SupplierPortal } from './pages/SupplierPortal';
 import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { TermsOfService } from './pages/TermsOfService';
-import { Onboarding } from './pages/Onboarding'; 
-import { TeamSettings } from './pages/TeamSettings'; 
-import { AcceptInvite } from './pages/AcceptInvite'; 
+import { Onboarding } from './pages/Onboarding';
+import { TeamSettings } from './pages/TeamSettings';
+import { AcceptInvite } from './pages/AcceptInvite';
 import { useAuditStore } from './lib/store';
 import { supabase } from './lib/supabase';
 import { Toaster } from 'sonner';
 
+function normalizePath(raw: string) {
+  // Strip query string and trailing slash
+  const [pathname] = raw.split('?');
+  const trimmed = pathname.replace(/\/+$/, '');
+  return trimmed === '' ? '/' : trimmed;
+}
+
 function App() {
-  const path = useRouter();
+  const rawPath = useRouter();
+  const path = normalizePath(rawPath);
+
   const setIsLoggedIn = useAuditStore((state) => state.setIsLoggedIn);
   const isLoggedIn = useAuditStore((state) => state.isLoggedIn);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       setIsLoggedIn(!!session);
-      
-      // --- Post-Login Invite Redirect ---
+
+      // Post-login invite redirect
       if (session) {
         const pendingToken = sessionStorage.getItem('pending_invite_token');
         if (pendingToken) {
@@ -32,25 +44,29 @@ function App() {
           return;
         }
       }
-      
+
       setLoading(false);
     };
 
     checkSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setIsLoggedIn(!!session);
-      
+
       if (event === 'SIGNED_IN' && session) {
-         const pendingToken = sessionStorage.getItem('pending_invite_token');
-         if (pendingToken) {
-           sessionStorage.removeItem('pending_invite_token');
-           window.location.href = `/join?token=${pendingToken}`;
-         }
+        const pendingToken = sessionStorage.getItem('pending_invite_token');
+        if (pendingToken) {
+          sessionStorage.removeItem('pending_invite_token');
+          window.location.href = `/join?token=${pendingToken}`;
+        }
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [setIsLoggedIn]);
 
   if (loading) {
@@ -61,38 +77,46 @@ function App() {
     );
   }
 
-  // --- ROUTING LOGIC ---
   const getContent = () => {
-    // 1. Priority Routes (Public/Hybrid)
+    // 1. Public / hybrid routes
     if (path.startsWith('/join')) {
       return <AcceptInvite />;
     }
 
     if (path.startsWith('/verify')) {
       const params = new URLSearchParams(window.location.search);
-      const token = params.get('token');
-      return <SupplierPortal token={token || ''} />;
+      const token = params.get('token') || '';
+      return <SupplierPortal token={token} />;
     }
 
-    if (path === '/privacy-policy') return <PrivacyPolicy />;
-    if (path === '/terms-of-service') return <TermsOfService />;
+    if (path === '/privacy-policy') {
+      return <PrivacyPolicy />;
+    }
 
-    // 2. Protected Routes (Logged In Users Only)
+    if (path === '/terms-of-service') {
+      return <TermsOfService />;
+    }
+
+    // 2. Protected routes
     if (isLoggedIn) {
-      if (path === '/onboarding') return <Onboarding />;
-      if (path === '/team') return <TeamSettings />;
-      
-      // Default Dashboard Route
+      if (path === '/onboarding') {
+        return <Onboarding />;
+      }
+
+      if (path === '/team') {
+        return <TeamSettings />;
+      }
+
       if (path.startsWith('/dashboard')) {
         return <Dashboard />;
       }
 
-      // Default Redirect for unknown protected routes
+      // Unknown protected route → redirect to dashboard
       window.history.replaceState({}, '', '/dashboard');
       return <Dashboard />;
     }
 
-    // 3. Public Landing Page
+    // 3. Default public landing
     return <Landing />;
   };
 
