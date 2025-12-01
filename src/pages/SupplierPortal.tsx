@@ -129,7 +129,7 @@ export function SupplierPortal() {
   // ... (Keep existing loading/error/success renders) ...
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Loader2 className="animate-spin text-slate-900 w-8 h-8" /></div>;
   if (error) return <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">...Error UI...</div>; // Use your existing error UI
-  if (success) return <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">...Success UI...</div>; // Use your existing success UI
+  if (success) return <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">...Everything was submitted, you can close it now...</div>; // Use your existing success UI
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900">

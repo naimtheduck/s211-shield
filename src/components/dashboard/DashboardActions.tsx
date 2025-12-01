@@ -70,28 +70,43 @@ export function DashboardActions({
         <button
           onClick={onAnalyzeBatch}
           disabled={selectedCount === 0}
-          className={`flex items-center px-5 py-2.5 rounded-lg shadow-sm text-sm font-bold transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
+          className={`flex items-center px-5 py-2.5 rounded-lg shadow-sm text-sm font-semibold transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
             isPremium
               ? 'bg-purple-600 text-white hover:bg-purple-700 hover:shadow-purple-200'
               : 'bg-slate-200 text-slate-400'
           }`}
         >
-          {isPremium ? <Wand2 className="w-4 h-4 mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
-          Analyze ({selectedCount})
+          {isPremium ? (
+            <Wand2 className="w-4 h-4 mr-2" />
+          ) : (
+            <Lock className="w-4 h-4 mr-2" />
+          )}
+
+          <span className="whitespace-nowrap">
+            Analyze ({selectedCount ?? 0})
+          </span>
         </button>
 
         <button
           onClick={onVerify}
           disabled={selectedCount === 0}
-          className={`flex items-center px-5 py-2.5 rounded-lg shadow-sm text-sm font-bold transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
+          className={`flex items-center px-5 py-2.5 rounded-lg shadow-sm text-sm font-semibold transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
             isPremium
               ? 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-blue-200'
               : 'bg-slate-200 text-slate-400'
           }`}
         >
-          {isPremium ? <Send className="w-4 h-4 mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
-          Send email ({selectedCount})
+          {isPremium ? (
+            <Send className="w-4 h-4 mr-2" />
+          ) : (
+            <Lock className="w-4 h-4 mr-2" />
+          )}
+
+          <span className="whitespace-nowrap">
+            Send email ({selectedCount ?? 0})
+          </span>
         </button>
+
       </div>
     </div>
   );

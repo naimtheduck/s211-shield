@@ -101,8 +101,9 @@ export function Dashboard() {
 
     if (member.company?.name) setCompanyName(member.company.name);
     
+    // hardcoding premium for now
     const isCompanyPremium = member.company?.subscription_status === 'premium';
-    useAuditStore.setState({ isPremium: isCompanyPremium });
+    useAuditStore.setState({ isPremium: true });
 
     // 2. Reporting Cycle
     const { data: cycle, error: cycleError } = await supabase
@@ -371,7 +372,7 @@ export function Dashboard() {
            onOpenAutomation={() => setIsAutomationOpen(true)}
            onDownloadTemplate={() => {}}
            uploading={false}
-           selectedIds={selectedIds.size}
+           selectedCount={selectedIds.size}
            isPremium={isPremium}
         />
 

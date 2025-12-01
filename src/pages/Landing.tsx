@@ -41,11 +41,6 @@ export function Landing() {
               >
                 Start Compliance Audit
               </button>
-              <button 
-                className="px-8 py-4 bg-white text-slate-700 border border-slate-300 text-lg font-bold rounded-xl hover:bg-slate-50 transition-all"
-              >
-                View Sample Report
-              </button>
             </div>
             
             <div className="mt-12 flex items-center justify-center gap-8 text-sm text-slate-500">
