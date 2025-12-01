@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Building2, ArrowRight, Loader2 } from 'lucide-react'; // Added Loader2
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { Header } from '../components/Header';
 import { toast } from 'sonner';
 
