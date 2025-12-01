@@ -27,6 +27,17 @@ function App() {
       const { data: { session } } = await supabase.auth.getSession();
       setIsLoggedIn(!!session);
 
+      const currentPath = window.location.pathname;
+
+      // ALLOW PUBLIC ROUTES - Don't redirect these even if logged in
+      const publicRoutes = ['/verify', '/privacy-policy', '/terms-of-service', '/join'];
+      const isPublicRoute = publicRoutes.some(route => currentPath.startsWith(route));
+      
+      if (isPublicRoute) {
+        setLoading(false);
+        return;
+      }
+
       // Handle pending invite (highest priority)
       const pendingToken = sessionStorage.getItem('pending_invite_token');
       if (pendingToken && session) {
@@ -43,8 +54,6 @@ function App() {
           .select('id')
           .eq('user_id', session.user.id)
           .maybeSingle();
-
-        const currentPath = window.location.pathname;
 
         // HAS company → force dashboard (unless already there)
         if (member && !currentPath.startsWith('/dashboard') && currentPath !== '/team') {
