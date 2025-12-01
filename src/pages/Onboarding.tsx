@@ -87,16 +87,15 @@ export function Onboarding() {
 
             if (memberError) throw memberError;
 
-            // 3. Create initial Reporting Cycle
-            const { error: cycleError } = await supabase
-                .from('reporting_cycles')
-                .insert({
-                    company_id: company.id,
-                    user_id: user.id, // Assuming user_id exists in reporting_cycles table
-                    year: new Date().getFullYear(),
-                    name: `${new Date().getFullYear()} Compliance Report`,
-                    is_active: true
-                });
+        // 3. Create initial Reporting Cycle
+        const { error: cycleError } = await supabase
+            .from('reporting_cycles')
+            .insert({
+                company_id: company.id,
+                year: new Date().getFullYear(),
+                name: `${new Date().getFullYear()} Compliance Report`,
+                is_active: true
+            });
 
             if (cycleError) throw cycleError;
 
