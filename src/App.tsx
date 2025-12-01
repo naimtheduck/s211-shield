@@ -22,71 +22,53 @@ function App() {
 // Inside your App.tsx — replace the whole useEffect and getContent()
 
 useEffect(() => {
-  const checkSessionAndMembership = async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+  const checkSession = async () => {
+    setLoading(true); // ← must be first!
 
+    const { data: { session } } = await supabase.auth.getSession();
     setIsLoggedIn(!!session);
-    setLoading(true); // keep loading until we know where to go
 
-    if (!session) {
-      setLoading(false);
-      return;
-    }
-
-    // Handle pending invite first (highest priority)
+    // Handle pending invite (highest priority)
     const pendingToken = sessionStorage.getItem('pending_invite_token');
-    if (pendingToken) {
+    if (pendingToken && session) {
       sessionStorage.removeItem('pending_invite_token');
       window.location.href = `/join?token=${pendingToken}`;
       return;
     }
 
-    // Critical: Check if user already belongs to a company
-    const { data: member, error } = await supabase
-      .from('organization_members')
-      .select('id')
-      .eq('user_id', session.user.id)
-      .maybeSingle();
+    // Only if logged in → check company membership
+    if (session) {
+      const { data: member } = await supabase
+        .from('organization_members')
+        .select('id')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
 
-    if (error) {
-      console.error('Error checking membership:', error);
+      const currentPath = window.location.pathname;
+
+      // HAS company → force dashboard (unless already there)
+      if (member && !currentPath.startsWith('/dashboard') && currentPath !== '/team') {
+        window.location.href = '/dashboard';
+        return;
+      }
+
+      // NO company → force onboarding (unless already there)
+      if (!member && currentPath !== '/onboarding') {
+        window.location.href = '/onboarding';
+        return;
+      }
     }
-
-    // Save this globally if you want (optional)
-    // useAuditStore.getState().setHasCompany(!!member);
 
     setLoading(false);
-
-    // Auto-redirect based on membership
-    const currentPath = window.location.pathname;
-    const isOnOnboarding = currentPath === '/onboarding';
-    const isOnDashboard = currentPath.startsWith('/dashboard');
-    const isOnTeam = currentPath === '/team';
-
-    if (member) {
-      // User HAS company → send to dashboard unless already there
-      if (!isOnDashboard && !isOnTeam) {
-        window.location.href = '/dashboard';
-      }
-    } else {
-      // User has NO company → force onboarding unless already there
-      if (!isOnOnboarding) {
-        window.location.href = '/onboarding';
-      }
-    }
   };
 
-  checkSessionAndMembership();
+  checkSession();
 
   const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
     setIsLoggedIn(!!session);
-    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-      checkSessionAndMembership();
-    }
-    if (event === 'SIGNED_OUT') {
-      setLoading(false);
+    // Re-run the full check on any auth change
+    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'SIGNED_OUT') {
+      checkSession();
     }
   });
 
@@ -94,7 +76,6 @@ useEffect(() => {
 }, [setIsLoggedIn]);
 
 const getContent = () => {
-  // Priority public/hybrid routes
   if (path.startsWith('/join')) return <AcceptInvite />;
   if (path.startsWith('/verify')) {
     const params = new URLSearchParams(window.location.search);
@@ -104,17 +85,15 @@ const getContent = () => {
   if (path === '/privacy-policy') return <PrivacyPolicy />;
   if (path === '/terms-of-service') return <TermsOfService />;
 
-  // Protected routes — we trust the redirect above already sent user to right place
   if (isLoggedIn) {
     if (path.startsWith('/dashboard')) return <Dashboard />;
     if (path === '/onboarding') return <Onboarding />;
     if (path === '/team') return <TeamSettings />;
     
-    // Fallback (should rarely hit due to redirect above)
+    // Fallback
     return <Dashboard />;
   }
 
-  // Not logged in → Landing
   return <Landing />;
 };
 
