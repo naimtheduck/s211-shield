@@ -1,3 +1,5 @@
+// src/components/Header.tsx
+
 import { useEffect, useState } from 'react';
 import { useAuditStore } from '../lib/store';
 import { t } from '../lib/translations';
@@ -53,7 +55,6 @@ export function Header({ onLogout }: { onLogout?: () => void }) {
   };
   
   const goToDashboard = async () => {
-    // If logged in, Dashboard.tsx will handle the redirect to /onboarding if needed
     navigate('/dashboard');
   };
 
@@ -76,14 +77,29 @@ export function Header({ onLogout }: { onLogout?: () => void }) {
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
+            {/* --- UPDATED LOGO & NAME SECTION --- */}
             <div className="flex items-center cursor-pointer" onClick={() => navigate('/')}>
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">Q</span>
+              {/* Replace '/logo.png' with your actual file name in the public folder */}
+              <img 
+                src="/logo.png" 
+                alt="The Compass Labs Logo" 
+                className="w-10 h-10 object-contain rounded-lg"
+                onError={(e) => {
+                  // Fallback if image fails to load
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+              {/* Fallback "C" icon if image is missing */}
+              <div className="hidden w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-lg">C</span>
               </div>
+              
               <span className="ml-3 text-lg font-semibold text-gray-900">
-                Loi96Facile (L96F)
+                The Compass Labs
               </span>
             </div>
+            {/* --- END UPDATED SECTION --- */}
 
             <div className="flex items-center space-x-2">
               <button
@@ -103,7 +119,6 @@ export function Header({ onLogout }: { onLogout?: () => void }) {
                     Dashboard
                   </button>
                   
-                  {/* ONLY SHOW TEAM BUTTON IF THEY HAVE AN ORG */}
                   {hasOrg && (
                     <button
                       onClick={() => navigate('/team')}

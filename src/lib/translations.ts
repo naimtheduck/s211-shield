@@ -1,11 +1,15 @@
+// src/lib/translations.ts
+
 export type Language = 'en' | 'fr';
 
 export const translations: Record<Language, Record<string, string>> = {
   en: {
     'header.switchLanguage': 'FR',
-    'hero.title': 'Quebec Law 25 & Bill 96 Compliance Audit',
-    'hero.subtitle': 'Is your business compliant? Get an instant website scan & checklist for OQLF & privacy laws.',
-    'hero.trustText': 'We never share your data. Quebec-first compliance.',
+    // --- UPDATED BRANDING ---
+    'hero.title': 'CompassLabs Bill S-211 Compliance',
+    'hero.subtitle': 'Is your business compliant? Get an instant supply chain scan & audit defense for Bill S-211.',
+    'hero.trustText': 'We never share your data. Canadian compliance first.',
+    // ------------------------
     'form.email': 'Email',
     'form.website': 'Website URL',
     'form.emailPlaceholder': 'your@email.com',
@@ -15,11 +19,11 @@ export const translations: Record<Language, Record<string, string>> = {
     'pricing.free.title': 'Free Scan',
     'pricing.free.subtitle': 'Find Your Compliance Gaps',
     'pricing.free.price': '$0',
-    'pricing.free.feature1': 'Instant website scan (Law 25 & Bill 96)',
+    'pricing.free.feature1': 'Instant supply chain scan',
     'pricing.free.feature2': 'Step-by-step manual checklist',
-    'pricing.free.feature3': 'Basic compliance score',
-    'pricing.free.feature4': 'Identifies *what* is missing',
-    'pricing.free.locked': 'No fix recommendations',
+    'pricing.free.feature3': 'Basic risk score',
+    'pricing.free.feature4': 'Identifies high-risk regions',
+    'pricing.free.locked': 'No remediation plan',
     'pricing.premium.title': 'Premium Compliance Fix',
     'pricing.premium.subtitle': 'Get Your Step-by-Step Fix',
     'pricing.premium.price': '$99',
@@ -27,9 +31,9 @@ export const translations: Record<Language, Record<string, string>> = {
     'pricing.premium.discountBadge': '50% OFF',
     'pricing.premium.oneTime': 'one-time',
     'pricing.premium.feature1': 'Everything in Free',
-    'pricing.premium.feature2': 'AI-powered fix recommendations',
-    'pricing.premium.feature3': 'AI-generated policy templates (Privacy, Cookies)',
-    'pricing.premium.feature4': 'Code snippets for cookie banners & HTML tags',
+    'pricing.premium.feature2': 'AI-powered remediation plan',
+    'pricing.premium.feature3': 'AI-generated report templates',
+    'pricing.premium.feature4': 'Vendor verification emailer',
     'pricing.premium.feature5': '30-min expert review call',
     'cta.getPremium': 'Get The Premium Fix',
     'dashboard.title': 'Your Compliance Audit',
@@ -54,7 +58,9 @@ export const translations: Record<Language, Record<string, string>> = {
     'paywall.close': 'Close',
     'loading': 'Loading...',
     'error.generic': 'Something went wrong. Please try again.',
-    'footer.copyright': '© {year} Quebec Compliance. All rights reserved.',
+    // --- UPDATED FOOTER ---
+    'footer.copyright': '© {year} The Compass Labs. All rights reserved.',
+    // ----------------------
     'footer.privacy': 'Privacy Policy',
     'footer.terms': 'Terms of Service',
     'cookieBanner.message': 'We use cookies for analytics to improve our site.',
@@ -67,7 +73,6 @@ export const translations: Record<Language, Record<string, string>> = {
     'login.password': 'Password',
     'login.cta': 'Log In',
 
-    // --- New Banner Keys ---
     'banner.premium.title': 'Get Your AI-Powered Fix Plan',
     'banner.premium.body': 'Your scan is complete. Unlock the full report to get AI-generated policy templates, code snippets, and a step-by-step plan to fix all issues.',
     'banner.premium.feature1': 'AI-Powered Recommendations',
@@ -76,9 +81,11 @@ export const translations: Record<Language, Record<string, string>> = {
   },
   fr: {
     'header.switchLanguage': 'EN',
-    'hero.title': 'Audit de Conformité Loi 25 & Loi 96 Québec',
-    'hero.subtitle': 'Votre entreprise est-elle conforme? Obtenez un scan instantané et une checklist pour l\'OQLF et les lois sur la confidentialité.',
-    'hero.trustText': 'Nous ne partageons jamais vos données. Conformité québécoise d\'abord.',
+    // --- UPDATED BRANDING (FR) ---
+    'hero.title': 'Conformité CompassLabs Bill S-211',
+    'hero.subtitle': 'Votre entreprise est-elle conforme? Obtenez un audit instantané de votre chaîne d\'approvisionnement.',
+    'hero.trustText': 'Nous ne partageons jamais vos données. Conformité canadienne d\'abord.',
+    // -----------------------------
     'form.email': 'Courriel',
     'form.website': 'URL du site web',
     'form.emailPlaceholder': 'votre@courriel.com',
@@ -88,11 +95,11 @@ export const translations: Record<Language, Record<string, string>> = {
     'pricing.free.title': 'Scan Gratuit',
     'pricing.free.subtitle': 'Trouvez Vos Lacunes de Conformité',
     'pricing.free.price': '0$',
-    'pricing.free.feature1': 'Scan instantané (Loi 25 & Loi 96)',
+    'pricing.free.feature1': 'Scan instantané de la chaîne',
     'pricing.free.feature2': 'Liste de vérification manuelle',
-    'pricing.free.feature3': 'Score de conformité de base',
-    'pricing.free.feature4': 'Identifie *ce qui* manque',
-    'pricing.free.locked': 'Pas de recommandations de correction',
+    'pricing.free.feature3': 'Score de risque de base',
+    'pricing.free.feature4': 'Identifie les régions à risque',
+    'pricing.free.locked': 'Pas de plan de remédiation',
     'pricing.premium.title': 'Correctif de Conformité Premium',
     'pricing.premium.subtitle': 'Obtenez Votre Correctif Étape par Étape',
     'pricing.premium.price': '99$',
@@ -100,9 +107,9 @@ export const translations: Record<Language, Record<string, string>> = {
     'pricing.premium.discountBadge': '50% DE RABAIS',
     'pricing.premium.oneTime': 'unique',
     'pricing.premium.feature1': 'Tout dans Gratuit',
-    'pricing.premium.feature2': 'Recommandations de correction par IA',
-    'pricing.premium.feature3': 'Modèles de politiques générés par IA (Confidentialité, Cookies)',
-    'pricing.premium.feature4': 'Extraits de code (bannière cookies, balises HTML)',
+    'pricing.premium.feature2': 'Plan de remédiation par IA',
+    'pricing.premium.feature3': 'Modèles de rapports générés par IA',
+    'pricing.premium.feature4': 'Outil de vérification des fournisseurs',
     'pricing.premium.feature5': 'Appel d\'expert de 30 min',
     'cta.getPremium': 'Obtenir le Correctif Premium',
     'dashboard.title': 'Votre Audit de Conformité',
@@ -127,7 +134,9 @@ export const translations: Record<Language, Record<string, string>> = {
     'paywall.close': 'Fermer',
     'loading': 'Chargement...',
     'error.generic': 'Une erreur s\'est produite. Veuillez réessayer.',
-    'footer.copyright': '© {year} Quebec Compliance. Tous droits réservés.',
+    // --- UPDATED FOOTER (FR) ---
+    'footer.copyright': '© {year} The Compass Labs. Tous droits réservés.',
+    // ---------------------------
     'footer.privacy': 'Politique de Confidentialité',
     'footer.terms': 'Conditions d\'Utilisation',
     'cookieBanner.message': 'Nous utilisons des témoins (cookies) pour l\'analyse afin d\'améliorer notre site.',
@@ -140,7 +149,6 @@ export const translations: Record<Language, Record<string, string>> = {
     'login.password': 'Mot de passe',
     'login.cta': 'Se Connecter',
     
-    // --- New Banner Keys (FR) ---
     'banner.premium.title': 'Obtenez Votre Plan de Correction par IA',
     'banner.premium.body': 'Votre scan est terminé. Débloquez le rapport complet pour obtenir des modèles de politiques, des extraits de code et un plan étape par étape pour corriger tous les problèmes.',
     'banner.premium.feature1': 'Recommandations par IA',

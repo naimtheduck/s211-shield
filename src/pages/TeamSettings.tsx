@@ -1,7 +1,10 @@
+// src/pages/TeamSettings.tsx
+
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Header } from '../components/Header';
 import { Trash2, Mail, CheckCircle, Clock, Plus, Copy, Check } from 'lucide-react';
+import { toast } from 'sonner';
 
 export function TeamSettings() {
   const [members, setMembers] = useState<any[]>([]);
@@ -11,7 +14,7 @@ export function TeamSettings() {
   // Invite Form
   const [newEmail, setNewEmail] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
-  const [createdLink, setCreatedLink] = useState<string | null>(null); // Store link for display
+  const [createdLink, setCreatedLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -22,25 +25,19 @@ export function TeamSettings() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // 1. Get My Company ID
-    const { data: membership, error: memberError } = await supabase
+    const { data: membership } = await supabase
       .from('organization_members')
       .select('company_id, role')
       .eq('user_id', user.id)
       .maybeSingle();
 
-    if (memberError || !membership) {
-        console.error("Error fetching membership:", memberError);
-        return;
-    }
+    if (!membership) return;
 
-    // 2. Fetch Members
     const { data: teamMembers } = await supabase
       .from('organization_members')
       .select('id, role, user_id, created_at') 
       .eq('company_id', membership.company_id);
 
-    // 3. Fetch Pending Invites
     const { data: pendingInvites } = await supabase
       .from('organization_invites')
       .select('*')
@@ -54,7 +51,7 @@ export function TeamSettings() {
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     setInviteLoading(true);
-    setCreatedLink(null); // Reset previous link
+    setCreatedLink(null);
 
     const { data: { user } } = await supabase.auth.getUser();
     const { data: membership } = await supabase
@@ -72,18 +69,33 @@ export function TeamSettings() {
     }).select();
 
     if (error) {
-      alert(`Invite failed: ${error.message}`);
+      toast.error(`Invite failed: ${error.message}`);
     } else {
       setNewEmail('');
       await fetchTeamData(); 
-      
-      // Show the link in the UI instead of an alert
       if (data && data[0]) {
           const link = `${window.location.origin}/join?token=${data[0].token}`;
           setCreatedLink(link);
+          toast.success("Invite created!");
       }
     }
     setInviteLoading(false);
+  };
+
+  const handleRevoke = async (id: string) => {
+    if (!confirm("Are you sure you want to revoke this invitation? The link will no longer work.")) return;
+
+    const { error } = await supabase
+      .from('organization_invites')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+        toast.error("Failed to revoke invite");
+    } else {
+        toast.success("Invite revoked successfully");
+        fetchTeamData();
+    }
   };
 
   const copyToClipboard = (text: string) => {
@@ -126,7 +138,6 @@ export function TeamSettings() {
             </button>
           </form>
 
-          {/* SUCCESS MESSAGE WITH COPYABLE LINK */}
           {createdLink && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 animate-in fade-in slide-in-from-top-2">
               <div className="flex items-start gap-3">
@@ -134,7 +145,7 @@ export function TeamSettings() {
                 <div className="flex-1">
                   <h4 className="text-sm font-bold text-green-800">Invite Created!</h4>
                   <p className="text-xs text-green-700 mb-2">
-                    Since email sending is disabled in dev mode, copy this link and send it manually:
+                    Copy and share this link:
                   </p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 bg-white border border-green-200 p-2 rounded text-xs font-mono text-slate-600 break-all">
@@ -199,7 +210,7 @@ export function TeamSettings() {
                           onClick={() => {
                             const link = `${window.location.origin}/join?token=${inv.token}`;
                             navigator.clipboard.writeText(link);
-                            alert("Link copied to clipboard!");
+                            toast.info("Link copied to clipboard!");
                           }}
                           className="text-xs text-blue-600 hover:underline flex items-center gap-1"
                         >
@@ -208,7 +219,13 @@ export function TeamSettings() {
                       </div>
                     </div>
                   </div>
-                  <button className="text-sm text-red-500 font-medium hover:underline">Revoke</button>
+                  {/* --- FIXED BUTTON --- */}
+                  <button 
+                    onClick={() => handleRevoke(inv.id)}
+                    className="text-sm text-red-500 font-medium hover:underline hover:text-red-700 transition-colors"
+                  >
+                    Revoke
+                  </button>
                 </div>
               ))}
             </div>
