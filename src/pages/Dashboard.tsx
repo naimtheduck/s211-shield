@@ -34,21 +34,26 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   
+  // Campaign & History States
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [reviewTarget, setReviewTarget] = useState<'batch' | string>('batch');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [historyVendorId, setHistoryVendorId] = useState<string | null>(null);
 
+  // Analysis & Report States
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
   const [analysisVendor, setAnalysisVendor] = useState<any>(null);
 
+  // Automation State
   const [isAutomationOpen, setIsAutomationOpen] = useState(false);
 
+  // Data States
   const [cycleId, setCycleId] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState<string>('My Company');
   const [newVendor, setNewVendor] = useState({ name: '', email: '', country: '' });
@@ -63,7 +68,6 @@ export function Dashboard() {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-        // If App.tsx failed to catch this, go back to landing
         window.location.href = '/'; 
         return;
     }
@@ -82,17 +86,15 @@ export function Dashboard() {
       return;
     }
 
-    // --- FIX FOR REDIRECT LOOP / BACK BUTTON CRASH ---
+    // --- CRITICAL FIX FOR REDIRECT LOOP ---
     if (!member) {
-      // If no membership is found, the user MUST be sent to the onboarding flow.
-      // App.tsx handles the initial redirect, but if user navigates here directly, 
-      // we must enforce the redirect. However, to prevent a loop, we navigate without 
-      // returning an error state to the browser history.
+      console.log("No membership found - redirecting to onboarding.");
+      // Use replaceState to remove /dashboard from history, preventing the back-button loop.
       window.history.replaceState(null, '', '/onboarding');
-      window.location.reload(); // Force browser to process the new path immediately
+      window.location.reload(); 
       return;
     }
-    // -------------------------------------------------
+    // --------------------------------------
 
 
     if (member.company?.name) setCompanyName(member.company.name);
