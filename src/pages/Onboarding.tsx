@@ -13,12 +13,10 @@ export function Onboarding() {
   // 1. CHECK: Do I already have a team?
   useEffect(() => {
     async function checkMembership() {
-      // CRITICAL FIX: Check for pending invite token FIRST
       const pendingToken = sessionStorage.getItem('pending_invite_token');
       if (pendingToken) {
-        // They have a pending invite - redirect to accept invite page
         sessionStorage.removeItem('pending_invite_token');
-        navigate(`/join?token=${pendingToken}`);
+        navigate(`/join?token=${pendingToken}`, { replace: true }); // Use replace: true
         return;
       }
 
@@ -31,9 +29,11 @@ export function Onboarding() {
           .maybeSingle();
         
         if (member) {
-          // User is already in a team! Skip onboarding.
+          // User is already in a team! Skip onboarding and REPLACE history entry.
           console.log("User already has a team. Redirecting to dashboard.");
-          navigate('/dashboard');
+          
+          // CRITICAL FIX: Use navigate with replace: true
+          navigate('/dashboard', { replace: true }); 
           return;
         }
       }
