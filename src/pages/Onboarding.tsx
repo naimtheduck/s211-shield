@@ -10,6 +10,29 @@ export function Onboarding() {
   const [checking, setChecking] = useState(true); // New loading state for check
   const [companyName, setCompanyName] = useState('');
 
+    const handleCreateCompany = async (e) => {
+    e.preventDefault();
+    // ... [Insert company creation logic here] ...
+
+    try {
+        // [Successful API call to create company and link member]
+        
+        // --- CRITICAL FIX FOR REDIRECT LOOP ---
+        console.log("Onboarding complete. Redirecting to Dashboard.");
+        
+        // Option 1 (Preferred if using React Router hooks):
+        // navigate('/dashboard', { replace: true }); 
+        
+        // Option 2 (If using plain window.location):
+        window.history.replaceState(null, '', '/dashboard');
+        window.location.reload(); 
+        // --------------------------------------
+        
+    } catch (error) {
+        // ...
+    }
+  };
+
   // 1. CHECK: Do I already have a team?
   useEffect(() => {
     async function checkMembership() {
@@ -28,15 +51,17 @@ export function Onboarding() {
           .eq('user_id', user.id)
           .maybeSingle();
         
-        if (member) {
-          // User is already in a team! Skip onboarding and REPLACE history entry.
-          console.log("User already has a team. Redirecting to dashboard.");
-          
-          // CRITICAL FIX: Use navigate with replace: true
-          navigate('/dashboard', { replace: true }); 
-          return;
-        }
-      }
+      if (member) {
+        // User is already in a team! Skip onboarding and REPLACE history entry.
+        console.log("User already has a team. Redirecting to dashboard.");
+        
+        // CRITICAL FIX: Use navigate with replace: true to prevent loop
+        // Assuming 'navigate' is available in scope.
+        window.history.replaceState(null, '', '/dashboard');
+        window.location.reload(); 
+        return;
+      }      
+    }
       setChecking(false); // Done checking, show form
     }
     checkMembership();
