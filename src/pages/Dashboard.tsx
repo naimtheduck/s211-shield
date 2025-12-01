@@ -34,26 +34,21 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   
-  // Campaign & History States
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [reviewTarget, setReviewTarget] = useState<'batch' | string>('batch');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [historyVendorId, setHistoryVendorId] = useState<string | null>(null);
 
-  // Analysis & Report States
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
   const [analysisVendor, setAnalysisVendor] = useState<any>(null);
 
-  // Automation State
   const [isAutomationOpen, setIsAutomationOpen] = useState(false);
 
-  // Data States
   const [cycleId, setCycleId] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState<string>('My Company');
   const [newVendor, setNewVendor] = useState({ name: '', email: '', country: '' });
@@ -67,9 +62,13 @@ export function Dashboard() {
   const fetchDashboardData = async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+        // If App.tsx failed to catch this, go back to landing
+        window.location.href = '/'; 
+        return;
+    }
 
-    // 1. GATEKEEPER
+    // 1. GATEKEEPER: Check Membership
     const { data: member, error: memberError } = await supabase
       .from('organization_members')
       .select('company_id, role, company:companies ( name, subscription_status )')
@@ -78,16 +77,23 @@ export function Dashboard() {
 
     if (memberError) {
       console.error("Critical Database Error:", memberError);
-      alert("Database permission error. Please ensure the RLS fix script was run.");
+      alert("Database permission error.");
       setLoading(false);
       return;
     }
 
+    // --- FIX FOR REDIRECT LOOP / BACK BUTTON CRASH ---
     if (!member) {
-      console.log("No membership found - redirecting to onboarding");
-      window.location.href = '/onboarding';
+      // If no membership is found, the user MUST be sent to the onboarding flow.
+      // App.tsx handles the initial redirect, but if user navigates here directly, 
+      // we must enforce the redirect. However, to prevent a loop, we navigate without 
+      // returning an error state to the browser history.
+      window.history.replaceState(null, '', '/onboarding');
+      window.location.reload(); // Force browser to process the new path immediately
       return;
     }
+    // -------------------------------------------------
+
 
     if (member.company?.name) setCompanyName(member.company.name);
     
@@ -266,23 +272,20 @@ export function Dashboard() {
     setIsHistoryOpen(true); 
   };
 
-  // --- AUTO-ANALYZE & REPORT GEN (UPDATED) ---
   const handleGenerateReport = async () => {
     if (!isPremium) { setShowPaywall(true); return; }
     
-    // Identify vendors that need analysis (Verified but no summary)
     const unanalyzed = vendors.filter(v => v.verification_status === 'VERIFIED' && !v.ai_risk_summary);
     
     if (unanalyzed.length > 0) {
         const toastId = toast.loading(`Analyzing ${unanalyzed.length} verified vendors before reporting...`);
         
-        // Run parallel analysis
         await Promise.all(unanalyzed.map(v => 
              supabase.functions.invoke('analyze-single-vendor', { body: { companyVendorId: v.id } })
         ));
         
         toast.dismiss(toastId);
-        await fetchDashboardData(); // Refresh so the report builder has the new data
+        await fetchDashboardData();
     }
 
     setIsReportModalOpen(true);
@@ -303,7 +306,6 @@ export function Dashboard() {
     }
   };
 
-  // --- VIEW CERTIFICATE HANDLER ---
   const handleViewCert = async (vendorId: string) => {
     try {
         const { data: requests, error } = await supabase
@@ -325,7 +327,6 @@ export function Dashboard() {
             return;
         }
 
-        // Open the most recent file
         const latestFile = files[files.length - 1];
         
         const { data: signedData, error: signError } = await supabase.storage
@@ -347,7 +348,6 @@ export function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-slate-900">
       <Header />
-      {/* Automation Settings Button */}
       <div className="max-w-7xl mx-auto px-4 pt-8 flex justify-end">
           <button 
             onClick={() => setIsAutomationOpen(true)}
@@ -364,9 +364,10 @@ export function Dashboard() {
            onVerify={handleBatchVerifyClick}
            onAnalyzeBatch={handleBatchAnalyzeClick}
            onGenerateReport={handleGenerateReport}
+           onOpenAutomation={() => setIsAutomationOpen(true)}
            onDownloadTemplate={() => {}}
            uploading={false}
-           selectedCount={selectedIds.size}
+           selectedIds={selectedIds.size}
            isPremium={isPremium}
         />
 
@@ -377,7 +378,6 @@ export function Dashboard() {
         />
 
         <VendorTable
-          // Flatten nested DB response for table
           vendors={vendors.map(v => ({
             id: v.id,
             company_name: v.vendor?.company_name || 'Unknown Vendor',
@@ -407,7 +407,7 @@ export function Dashboard() {
         />
       </main>
 
-      {/* ... Modals ... */}
+      {/* Modals */}
       {isAddModalOpen && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"><div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-8 relative"><button onClick={() => setIsAddModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X size={20}/></button><h2 className="text-2xl font-bold text-slate-900 mb-6">Add New Vendor</h2><form onSubmit={handleManualAdd} className="space-y-5"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Company Name</label><input className="w-full p-3 border border-slate-300 rounded-lg" value={newVendor.name} onChange={e => setNewVendor({...newVendor, name: e.target.value})} required /></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Contact Email</label><input type="email" className="w-full p-3 border border-slate-300 rounded-lg" value={newVendor.email} onChange={e => setNewVendor({...newVendor, email: e.target.value})} required /></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Country</label><input className="w-full p-3 border border-slate-300 rounded-lg" value={newVendor.country} onChange={e => setNewVendor({...newVendor, country: e.target.value})} required /></div><button type="submit" className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-lg hover:bg-slate-800 mt-2">Save Vendor</button></form></div></div>)}
       <CsvImportWizard isOpen={isImportOpen} onClose={() => setIsImportOpen(false)} onSuccess={() => fetchDashboardData()} cycleId={cycleId} />
       <CampaignReviewModal isOpen={isReviewModalOpen} onClose={() => setIsReviewModalOpen(false)} onSend={executeCampaign} onTest={sendTestEmail} recipientCount={reviewTarget === 'batch' ? selectedIds.size : 1} recipientLabel={reviewTarget === 'batch' ? `${selectedIds.size} selected vendors` : vendors.find(v => v.id === reviewTarget)?.vendor?.company_name || 'Vendor'} />
