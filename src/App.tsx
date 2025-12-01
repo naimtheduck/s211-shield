@@ -86,12 +86,16 @@ function App() {
     
     // 2. Protected Routes (Logged In Users Only)
     if (isLoggedIn) {
+      
+      // If logged in, prioritize internal app routes
+      if (path.startsWith('/dashboard')) return <Dashboard />;
       if (path === '/onboarding') return <Onboarding />;
       if (path === '/team') return <TeamSettings />;
-      
-      // Default Dashboard Route
-      if (path.startsWith('/dashboard')) {
-        return <Dashboard />;
+
+      // If user is logged in but lands on '/' or another public route, redirect to dashboard.
+      if (path === '/' || path === '/landing') {
+          window.history.replaceState({}, '', '/dashboard');
+          return <Dashboard />;
       }
       
       // Default Redirect for unknown protected routes
@@ -99,7 +103,7 @@ function App() {
       return <Dashboard />;
     }
     
-    // 3. Public Landing Page
+    // 3. Default Public Landing Page
     return <Landing />;
   };
 
